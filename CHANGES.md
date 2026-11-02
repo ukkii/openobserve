@@ -1,16 +1,21 @@
 # Fork changes
 
-Updated: 2026-11-02.
+Updated: 2026-11-03.
 
 This document records work on the `ukkii/openobserve` fork, on branch
-`codex/privacy-community-auth`. It covers the five local privacy/community WIP
-commits and subsequent working-tree changes. Work in this session has not been
-pushed to the original OpenObserve repository.
+`codex/privacy-community-auth`. It covers the five privacy/community WIP commits
+and the subsequent MCP, interface, font, and branding changes. The reviewed
+implementation snapshot `d076c36394` was pushed to
+[fork PR #1](https://github.com/ukkii/openobserve/pull/1), whose head and base are
+both in `ukkii/openobserve`. No changes were pushed to the original OpenObserve
+repository.
 
 The conversion is incomplete. Known automatic vendor reporting paths have been
 removed, but this is not a completed repository-wide egress audit or a claim that
-all Enterprise code has been deleted. MCP is implemented, locally tested, and
-deployed to the local Docker preview; independent review remains pending.
+all Enterprise code has been deleted. The scoped MCP/interface implementation
+was independently approved after two review rounds and is published as a public
+Linux/amd64 Docker image. That approval does not close the five earlier
+privacy/community findings listed below.
 
 ## Privacy and automatic network activity
 
@@ -138,11 +143,11 @@ tool, cross-organization requests, and credential issuance using an MCP bearer.
 Rotation, revocation, expiry, membership removal, per-user revocation isolation,
 and hashed-only persistence were checked.
 
-The updated backend is deployed in the local Docker preview. HTTP MCP smoke
-tests queried the existing demo logs and confirmed 100 rows each in `demo_api`,
-`demo_web`, and `demo_worker`. An independently supplied user token completed
-initialization, listed seven top-level tools, and returned 100 `demo_web` rows
-through `SearchSQL`, without being rotated or revoked by that validation.
+Before the final scope fixes, local Docker HTTP MCP smoke tests queried the
+existing demo logs and confirmed 100 rows each in `demo_api`, `demo_web`, and
+`demo_worker`. An independently supplied user token completed initialization,
+listed seven top-level tools, and returned 100 `demo_web` rows through `SearchSQL`,
+without being rotated or revoked by that validation.
 
 One earlier HTTP 401 was traced to a smoke test replacing and revoking the same
 user/organization credential slot. It was test interference with the active
@@ -153,7 +158,15 @@ Independent review identified credential-reading API access and stale expired
 UI credentials. Both findings were reproduced and fixed. Isolated Root/Admin
 HTTP checks verify denied credential/configuration reads, no default-token
 creation on denial, retained telemetry queries, and unchanged interactive
-credential management. Follow-up independent review remains pending.
+credential management. The follow-up scoped review approved snapshot
+`d076c36394` after two rounds, with both findings resolved and no new findings.
+
+The final published Linux/amd64 image also passed an isolated HTTP test using a
+fresh temporary user and data: MCP initialization, tool listing, `StreamList`,
+`StreamSchema`, and `SearchSQL` returned the seeded row. Secret/configuration
+reads and REST/MCP mutations returned HTTP 403; cross-organization access was
+denied, and a revoked credential was rejected. The test did not modify the
+interactive preview user's token.
 
 ## Local Docker preview and demo data
 
@@ -161,8 +174,12 @@ These are local development artifacts, separate from committed source changes:
 
 - Preview URL: `http://127.0.0.1:5080/web/`, bound to loopback.
 - Container: `ukkii-openobserve-preview`.
-- Image: `ukkii-openobserve:community-mcp-debug`.
+- Image: `ykki/openobserve:community-mcp-2026-11-02` (`linux/amd64`).
 - Persistent volume: `ukkii-openobserve-preview-data`.
+- The preview was replaced with the published image while preserving its
+  loopback port binding, volume, and configuration. Post-replacement checks
+  returned HTTP 200 for both `/healthz` and the `/web/` frontend. The stopped
+  backup container was removed after validation; the data volume was retained.
 - The backend uses a debug build. Temporary Dockerfiles outside this repository
   package the binary and frontend assets; they are not a checked-in deployment
   recipe.
@@ -179,10 +196,26 @@ streams were modified by the generator.
 
 ## Publication status
 
-The requested public Docker Hub target is `ykki/openobserve`, for `linux/amd64`
-only. That image is currently building under emulation and has not been pushed.
-The requested Git push and pull request target only the `ukkii/openobserve`
-fork; they are pending at the time of this update.
+The public [Docker Hub repository](https://hub.docker.com/r/ykki/openobserve)
+contains both tags:
+
+- `ykki/openobserve:latest`
+- `ykki/openobserve:community-mcp-2026-11-02`
+
+Both resolve to digest
+`sha256:5b8594125a5e95aff14adcec38032f140519022006dca7568ac33fa8b9c36961`.
+Unauthenticated Hub metadata confirms that the repository is public. The image
+index contains one runnable platform, `linux/amd64`, plus a non-runnable
+attestation manifest. This is a debug image of approximately 274 MB, built under
+emulation and checked with the isolated HTTP test described above.
+
+```bash
+docker pull ykki/openobserve:community-mcp-2026-11-02
+```
+
+The reviewed Git snapshot is available in
+[ukkii/openobserve PR #1](https://github.com/ukkii/openobserve/pull/1). This pull
+request is wholly inside the fork; the original repository is not its target.
 
 ## Verification and remaining work
 
@@ -212,9 +245,12 @@ The earlier independent review ended after five rounds with five open findings:
 
 The final automatic-egress audit, 375/768/1280 viewport inspection, and private
 Enterprise manifest/build verification remain outstanding. The private paired
-repository was unavailable. MCP is deployed locally; its independent review
-remains pending.
+repository was unavailable. The scoped MCP/interface implementation was approved
+after two independent review rounds. The public image passed isolated runtime
+checks, and the updated preview passed health/frontend checks.
 
 Local privacy/community WIP commits, in implementation order:
 `516f22ce9`, `39ac182c6`, `2e3c4041f`, `596901347`, and `95f38b5e3`.
-Later font, UI, and MCP edits are currently working-tree changes.
+The later font, UI, branding, and MCP changes are included in the reviewed and
+pushed snapshot `d076c36394`. This document also records the subsequent verified
+image publication and local preview replacement.
