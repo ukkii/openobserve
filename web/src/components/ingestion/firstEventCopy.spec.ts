@@ -35,7 +35,6 @@ vi.mock("@/utils/zincutils", async (importOriginal) => ({
     tls: "off",
   }),
 }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 
 // A copy on a credential block reaches the page only through the injected hook.
 vi.mock("@/components/ingestion/CredentialCodeBlock.vue", async () => {

@@ -18,12 +18,10 @@ import incidents, { type CancelRcaResponse, type TriggerRcaResponse } from "./in
 import http, { attemptTokenRefresh } from "./http";
 import serviceStreamsApi from "./service_streams";
 import { gt } from "@/types/i18n";
-import analytics from "./product_analytics";
 
 // Mock the http module
 vi.mock("./http");
 vi.mock("./service_streams");
-vi.mock("./product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@/stores", () => ({ default: { state: { API_ENDPOINT: "http://api.test" } } }));
 
 describe("incidents service", () => {
@@ -522,55 +520,6 @@ describe("incidents service", () => {
         source_type: "logs",
         available_dimensions: mockIncident.group_values,
       });
-    });
-  });
-
-  describe("product analytics", () => {
-    const cases: [string, "post" | "patch", () => Promise<unknown>, string, object?][] = [
-      [
-        "updateStatus",
-        "patch",
-        () => incidents.updateStatus("test-org", "incident-123", "acknowledged"),
-        "incident_status_updated",
-        { status: "acknowledged" },
-      ],
-      [
-        "updateIncident",
-        "patch",
-        () => incidents.updateIncident("test-org", "incident-123", { severity: "P1" }),
-        "incident_updated",
-        { severity_changed: true, title_changed: false },
-      ],
-      [
-        "triggerRca",
-        "post",
-        () => incidents.triggerRca("test-org", "incident-123", { build_on_previous: true }),
-        "incident_rca_requested",
-        { build_on_previous: true },
-      ],
-      [
-        "postComment",
-        "post",
-        () => incidents.postComment("test-org", "incident-123", "note"),
-        "incident_comment_added",
-      ],
-    ];
-
-    it.each(cases)("%s tracks once the server confirms", async (_, verb, call, event, props) => {
-      mockHttp[verb].mockResolvedValue({ data: {} });
-
-      await call();
-
-      if (props) expect(analytics.track).toHaveBeenCalledWith(event, props);
-      else expect(analytics.track).toHaveBeenCalledWith(event);
-    });
-
-    it.each(cases)("%s does not track a rejected request", async (_, verb, call) => {
-      mockHttp[verb].mockRejectedValue(new Error("boom"));
-
-      await expect(call()).rejects.toThrow("boom");
-
-      expect(analytics.track).not.toHaveBeenCalled();
     });
   });
 });

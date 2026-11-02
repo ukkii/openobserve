@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 // verification_state: 0 pending, 1 verified, 2 failed; failure reason: 0 record missing, 1 value mismatch, 2 DNS failure.
 export interface OrgDomainOwnership {
@@ -80,7 +79,6 @@ const organizations = {
     return http()
       .post("/api/organizations", data)
       .then((res) => {
-        analytics.track("organization_created");
         return res;
       });
   },
@@ -88,9 +86,6 @@ const organizations = {
     return http()
       .post(`api/${orgIdentifier}/invites`, data)
       .then((res) => {
-        const invited = data?.invites?.length ?? 0;
-        const count = invited - (res.data?.data?.invalid_members?.length ?? 0);
-        if (count > 0) analytics.track("user_invited", { count });
         return res;
       });
   },
@@ -119,7 +114,6 @@ const organizations = {
     return http()
       .put(`api/${orgIdentifier}/passcode`, {})
       .then((res) => {
-        analytics.track("ingestion_passcode_regenerated");
         return res;
       });
   },
@@ -217,7 +211,6 @@ const organizations = {
     return http()
       .post(`/api/${orgIdentifier}/ingestion-tokens`, data)
       .then((res) => {
-        analytics.track("ingestion_token_created");
         return res;
       });
   },

@@ -61,10 +61,6 @@ vi.mock("@/lib/feedback/Toast/useToast", () => ({
 }));
 import { toast } from "@/lib/feedback/Toast/useToast";
 
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({ track: vi.fn() }),
-}));
-
 // ODialog stub: keeps slot content queryable + exposes form-id and open state.
 const ODialogStub = {
   name: "ODialog",

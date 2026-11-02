@@ -91,13 +91,6 @@ vi.mock("@/services/stream", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-    page: vi.fn(),
-  },
-}));
-
 vi.mock("@/services/organizations", async (importOriginal) => {
   const { overlayServiceMock } = await import("@/test/unit/helpers/mockService");
   return overlayServiceMock(await importOriginal(), {
@@ -1437,10 +1430,6 @@ describe("SearchBar.vue Actual Component Methods", () => {
       updateQueryValue: vi.fn((value) => {
         componentInstance.searchObj.data.editorValue = value;
 
-        if (componentInstance.searchObj.meta.quickMode === true) {
-          // Quick mode logic
-        }
-
         // Turn off SQL mode when query is completely cleared
         if (value.trim() === "" && componentInstance.searchObj.meta.sqlMode === true) {
           componentInstance.searchObj.meta.sqlMode = false;
@@ -1734,14 +1723,7 @@ describe("SearchBar.vue Actual Component Methods", () => {
         componentInstance.searchObj.data.editorValue = "";
       }),
 
-      loadSavedView: vi.fn(() => {
-        if (
-          componentInstance.searchObj.data.savedViews &&
-          componentInstance.searchObj.data.savedViews.length === 0
-        ) {
-          // Mock getSavedViews call
-        }
-      }),
+      loadSavedView: vi.fn(() => {}),
 
       handleFavoriteSavedView: vi.fn((row, flag) => {
         if (!flag) {

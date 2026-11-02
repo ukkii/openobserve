@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 interface TranslateStackTraceRequest {
   stacktrace: string;
@@ -72,7 +71,6 @@ const sourcemapsService = {
         },
       })
       .then((res) => {
-        analytics.track("sourcemaps_uploaded");
         return res;
       });
   },

@@ -75,8 +75,6 @@ vi.mock("@/services/anomaly_detection", async (importOriginal) => {
   const { overlayServiceMock } = await import("@/test/unit/helpers/mockService");
   return overlayServiceMock(await importOriginal(), { default: { get: vi.fn() } });
 });
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 
 interface AlertForm {
   setFieldValue: (path: string, value: unknown) => void;

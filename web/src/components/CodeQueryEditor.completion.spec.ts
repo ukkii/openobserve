@@ -13,8 +13,6 @@ import { mount } from "@vue/test-utils";
 import CodeQueryEditor from "./CodeQueryEditor.vue";
 import { createStore } from "vuex";
 import { SQL_CLAUSE_KEYWORDS, SQL_KEYWORDS } from "@/utils/query/sqlCompletion";
-import analytics from "@/services/product_analytics";
-import { flushEditorSuggestSummary } from "@/utils/query/editorSuggestStats";
 
 // Stable model instance. CodeQueryEditor's completion provider answers only for
 // its OWN model (`if (own && model !== own) return { suggestions: [] }`), so a
@@ -2419,39 +2417,6 @@ describe("P0-2 / P0-3 / W0-B — the chain, the operator lane and comments", () 
       const on = await mountIn("trigger-on", "automatic");
       const values = await ask(on.registration, on.editor, "SELECT * FROM t WHERE level=", "", eq);
       expect(item(values, "level"), "a value position offers columns").toBeDefined();
-    },
-  );
-
-  it(
-    "the grouped operator menu still counts its rows in the operator lane",
-    { timeout: 30000 },
-    async () => {
-      const { registration, editor } = await mountIn("lane-grouped");
-      const track = vi.spyOn(analytics, "track");
-      flushEditorSuggestSummary();
-      track.mockClear();
-      const model = editor.getModel();
-      const text = "SELECT * FROM t WHERE level ";
-      model.getLineContent.mockReturnValue(`${text}AND code = 1`);
-      model.getValueInRange.mockReturnValue(text);
-      model.getWordUntilPosition.mockReturnValue({
-        word: "",
-        startColumn: text.length + 1,
-        endColumn: text.length + 1,
-      });
-      const result = await registration.provideCompletionItems(
-        model,
-        { lineNumber: 1, column: text.length + 1 },
-        TYPED_SPACE,
-        {},
-      );
-      expect(item(result, "=")?.command?.arguments).toEqual(["operator"]);
-      flushEditorSuggestSummary();
-      const summary = track.mock.calls
-        .map((c: any[]) => c[1])
-        .find((p: any) => p?.lane_offered_operator !== undefined);
-      expect(summary?.lane_offered_operator).toBe(1);
-      track.mockRestore();
     },
   );
 

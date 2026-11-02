@@ -2934,6 +2934,35 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "enterprise"))]
+    #[test]
+    fn every_documented_non_get_route_has_a_viewer_classification() {
+        let spec = super::openapi::ApiDoc::openapi();
+        let mut unclassified = Vec::new();
+        for (path, item) in &spec.paths.paths {
+            for (method, documented) in [
+                ("POST", item.post.is_some()),
+                ("PUT", item.put.is_some()),
+                ("DELETE", item.delete.is_some()),
+                ("PATCH", item.patch.is_some()),
+                ("HEAD", item.head.is_some()),
+                ("OPTIONS", item.options.is_some()),
+                ("TRACE", item.trace.is_some()),
+            ] {
+                if documented
+                    && openobserve_core::authz::classify_viewer_non_get(method, path).is_none()
+                {
+                    unclassified.push(format!("{method} {path}"));
+                }
+            }
+        }
+        unclassified.sort();
+        assert!(
+            unclassified.is_empty(),
+            "classify every non-GET route for Viewer: {unclassified:#?}"
+        );
+    }
+
     #[cfg(feature = "enterprise")]
     #[test]
     fn audit_redacts_every_secret_write_body() {

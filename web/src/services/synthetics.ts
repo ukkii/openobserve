@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import http from "./http";
 import store from "@/stores";
-import analytics from "./product_analytics";
 
 const STREAM_NAME = "synthetics_results";
 
@@ -83,9 +82,6 @@ const syntheticsService = {
     return http()
       .post(`/api/${orgIdentifier}/synthetics${params}`, payload)
       .then((res) => {
-        analytics.track("synthetic_test_created", {
-          type: (payload as { type?: string } | null)?.type,
-        });
         return res;
       });
   },
@@ -95,9 +91,6 @@ const syntheticsService = {
     return http()
       .put(`/api/${orgIdentifier}/synthetics/${id}${params}`, payload)
       .then((res) => {
-        analytics.track("synthetic_test_updated", {
-          type: (payload as { type?: string } | null)?.type,
-        });
         return res;
       });
   },

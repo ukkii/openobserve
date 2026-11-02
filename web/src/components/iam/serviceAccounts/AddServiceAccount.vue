@@ -132,7 +132,6 @@ import { groupsQuery } from "@/services/iam.queries";
 import { rolesQuery } from "@/services/iam.queries";
 import { queryClient } from "@/composables/query/queryClient";
 import { saveServiceAccountMutation } from "@/services/service_accounts.queries";
-import analytics from "@/services/product_analytics";
 import { useMutation } from "@tanstack/vue-query";
 import { defineComponent, computed, ref, watch } from "vue";
 import ODialog from "@/lib/overlay/Dialog/ODialog.vue";
@@ -144,12 +143,10 @@ import OIcon from "@/lib/core/Icon/OIcon.vue";
 import AddRole from "@/components/iam/roles/AddRole.vue";
 import { raw, useI18nTyped } from "@/types/i18n";
 import { useStore } from "vuex";
-import service_accounts from "@/services/service_accounts";
 import { useLockedAffordance } from "@/composables/useLockedAffordance";
 import { useEnterpriseUpgradeDialog } from "@/composables/useEnterpriseUpgradeDialog";
 import { updateRole, updateGroup } from "@/services/iam";
 import { seedReadonlyRolePermissions } from "@/components/iam/roles/readonlyPreset";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import type { SelectOption } from "@/lib/forms/Select/OSelect.types";
 import {
@@ -189,7 +186,6 @@ export default defineComponent({
   setup(props) {
     const store: any = useStore();
     const { t } = useI18nTyped();
-    const { track } = useReo();
 
     // Form-base: the OForm owns the only editable fields (name + first_name +
     // roles + groups). Update mode is derived from the externally-provided
@@ -282,7 +278,6 @@ export default defineComponent({
       roleOptions,
       groupOptions,
       showAddRoleDialog,
-      track,
     };
   },
 
@@ -369,10 +364,6 @@ export default defineComponent({
             });
           }
         }
-        this.track("Button Click", {
-          button: "Update Service Account",
-          page: "Add Service Account",
-        });
       } else {
         // The UI synthesizes the org-scoped identifier from the name; the API
         // still receives a regular email payload.
@@ -381,7 +372,6 @@ export default defineComponent({
           const res = await this.saveServiceAccount.mutateAsync({
             payload: { email, first_name: value.first_name },
           });
-          analytics.track("service_account_created");
 
           // Fan out access grants AFTER the account exists — but do NOT await
           // them here: the show-once token must never be held hostage by a
@@ -414,10 +404,6 @@ export default defineComponent({
             });
           }
         }
-        this.track("Button Click", {
-          button: "Create Service Account",
-          page: "Add Service Account",
-        });
       }
     },
 

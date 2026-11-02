@@ -14,14 +14,12 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 const template = {
   create: ({ org_identifier, data }: any) => {
     return http()
       .post(`/api/${org_identifier}/alerts/templates`, data)
       .then((res) => {
-        analytics.track("alert_template_created");
         return res;
       });
   },
@@ -29,7 +27,6 @@ const template = {
     return http()
       .put(`/api/${org_identifier}/alerts/templates/${encodeURIComponent(template_name)}`, data)
       .then((res) => {
-        analytics.track("alert_template_updated");
         return res;
       });
   },
@@ -45,7 +42,6 @@ const template = {
     return http()
       .delete(`/api/${org_identifier}/alerts/templates/${encodeURIComponent(template_name)}`)
       .then((res) => {
-        analytics.track("alert_template_deleted", { count: 1 });
         return res;
       });
   },
@@ -53,8 +49,6 @@ const template = {
     return http()
       .delete(`/api/${org_identifier}/alerts/templates/bulk`, { data })
       .then((res) => {
-        const count = res.data?.successful?.length ?? 0;
-        if (count > 0) analytics.track("alert_template_deleted", { count });
         return res;
       });
   },

@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 const anomaly_detection = {
   list: (org_identifier: string) => {
@@ -41,7 +40,6 @@ const anomaly_detection = {
     return http()
       .post(url, data)
       .then((res) => {
-        analytics.track("alert_created");
         return res;
       });
   },
@@ -51,7 +49,6 @@ const anomaly_detection = {
     return http()
       .put(`/api/v2/${org_identifier}/alerts/${anomaly_id}`, data)
       .then((res) => {
-        analytics.track("alert_updated");
         return res;
       });
   },
@@ -73,7 +70,6 @@ const anomaly_detection = {
     return http()
       .post(`/api/${org_identifier}/anomaly_detection/${anomaly_id}/train`, {})
       .then((res) => {
-        analytics.track("anomaly_detection_training_started");
         return res;
       });
   },

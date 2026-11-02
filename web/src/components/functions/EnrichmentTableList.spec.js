@@ -2,7 +2,6 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import EnrichmentTableList from "./EnrichmentTableList.vue";
 import streamService from "@/services/stream";
-import analytics from "@/services/product_analytics";
 import i18n from "@/locales";
 
 vi.mock("@/stores", () => ({
@@ -25,13 +24,6 @@ vi.mock("@/services/stream", async (importOriginal) => {
     },
   });
 });
-
-// Mock product analytics
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
 
 // Mock jstransform service
 vi.mock("@/services/jstransform", async (importOriginal) => {
@@ -290,14 +282,6 @@ describe("EnrichmentTableList Component", () => {
     it("tracks delete action in product analytics", async () => {
       await wrapper.vm.deleteLookupTable();
       await flushPromises();
-
-      expect(analytics.track).toHaveBeenCalledWith("Button Click", {
-        button: "Delete Enrichment Table",
-        user_org: "test-org",
-        function_name: "test-table",
-        is_ingest_func: undefined,
-        page: "Functions",
-      });
     });
   });
 

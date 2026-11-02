@@ -165,7 +165,6 @@ import type {
 } from "@/utils/awsIntegrations";
 import { generateCloudFormationURL } from "@/utils/awsIntegrations";
 import { getEndPoint, getIngestionURL } from "@/utils/zincutils";
-import analytics from "@/services/product_analytics";
 import dashboardsService from "@/services/dashboards";
 import { createDashboardMutation } from "@/services/dashboards.queries";
 import { folderKeys } from "@/services/common.querykeys";
@@ -267,13 +266,6 @@ export default defineComponent({
       selectedComponent.value = componentMap[option.component];
       selectedComponentTitle.value = `${props.integration.displayName} - ${option.name}`;
       showComponentContent.value = true;
-
-      // Track analytics
-      analytics.track("AWS Component Config Opened", {
-        service: props.integration.name,
-        platform: option.name,
-        integration_id: props.integration.id,
-      });
     };
 
     const handleTemplateSelection = (template: CloudFormationTemplate) => {
@@ -341,13 +333,6 @@ export default defineComponent({
 
         // Open AWS Console in new tab
         window.open(cloudFormationURL, "_blank", "noopener,noreferrer");
-
-        // Track analytics
-        analytics.track("AWS Integration Started", {
-          service: props.integration.name,
-          category: props.integration.category,
-          integration_id: props.integration.id,
-        });
 
         toast({
           variant: "info",
@@ -419,7 +404,6 @@ export default defineComponent({
       }
 
       await createDashboard.mutateAsync({ json: dashboardJson, folderId });
-      analytics.track("dashboard_created");
     };
 
     const handleAddDashboard = async () => {
@@ -500,12 +484,6 @@ export default defineComponent({
                 handler: () => router.push(`/dashboards?org_identifier=${orgId}`),
               },
             });
-
-            // Track analytics
-            analytics.track("AWS Dashboard Replaced", {
-              service: props.integration.name,
-              integration_id: props.integration.id,
-            });
           } catch (error) {
             loadingNotif();
             console.error("Error replacing dashboard:", error);
@@ -541,12 +519,6 @@ export default defineComponent({
             handler: () => router.push(`/dashboards?org_identifier=${orgId}`),
           },
         });
-
-        // Track analytics
-        analytics.track("AWS Dashboard Imported", {
-          service: props.integration.name,
-          integration_id: props.integration.id,
-        });
       } catch (error) {
         console.error("Error importing dashboard:", error);
         toast({
@@ -563,13 +535,6 @@ export default defineComponent({
       if (!props.integration.documentationUrl) {
         return;
       }
-
-      // Track analytics
-      analytics.track("AWS Documentation Opened", {
-        service: props.integration.name,
-        integration_id: props.integration.id,
-        documentation_url: props.integration.documentationUrl,
-      });
 
       // Open documentation in new tab
       window.open(props.integration.documentationUrl, "_blank", "noopener,noreferrer");

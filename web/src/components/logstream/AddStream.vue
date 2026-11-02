@@ -129,7 +129,6 @@ import OForm from "@/lib/forms/Form/OForm.vue";
 import { useOForm } from "@/lib/forms/Form/useOForm";
 import OFormInput from "@/lib/forms/Input/OFormInput.vue";
 import OFormSelect from "@/lib/forms/Select/OFormSelect.vue";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { makeAddStreamSchema, addStreamDefaults, type AddStreamForm } from "./AddStream.schema";
 import { createStreamMutation } from "@/services/stream.queries";
@@ -175,8 +174,6 @@ const addStreamForm = useOForm<AddStreamForm>({
   schema: addStreamSchema,
   onSubmit: (value) => saveStream(value),
 });
-
-const { track } = useReo();
 
 // Read the form-owned stream_type so `showDataRetention` — which also depends on
 // org config the schema can't read — re-evaluates when the user changes the type.
@@ -258,10 +255,6 @@ const saveStream = async (value: AddStreamForm) => {
         });
       }
     });
-  track("Button Click", {
-    button: "Save Stream",
-    page: "Add Stream",
-  });
 };
 
 const getStreamPayload = (dataRetentionDays: number, rows: any[]) => {

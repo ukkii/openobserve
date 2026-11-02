@@ -642,7 +642,6 @@ import SavedViewsSubmenu from "@/components/savedViews/SavedViewsSubmenu.vue";
 import { useFavoriteSavedViews } from "@/composables/useFavoriteSavedViews";
 
 import { debounce } from "lodash-es";
-import analytics from "@/services/product_analytics";
 import config from "@/aws-exports";
 import { useToolbarResponsive } from "@/composables/useToolbarResponsive";
 import { useToolbarPins } from "@/composables/useToolbarPins";
@@ -967,15 +966,7 @@ export default defineComponent({
 
     // Debounced query trigger for absolute time when auto-run is enabled.
     // Gives the user 2.5s to finish typing start/end time before firing.
-    const triggerAbsoluteQueryDebounced = debounce((value: object) => {
-      if (value.userChangedValue) {
-        analytics.track("traces_time_range_changed", {
-          stream_name: searchObj.data.stream.selectedStream.value,
-          value_type: value.valueType,
-          relative_period: value.relativeTimePeriod,
-        });
-      }
-
+    const triggerAbsoluteQueryDebounced = debounce((_value: object) => {
       if (store.state.zoConfig?.auto_query_enabled && searchObj.meta.liveMode) {
         emit("searchdata");
       }
@@ -1062,14 +1053,6 @@ export default defineComponent({
         datetimeChanged
       ) {
         emit("searchdata");
-      }
-
-      if (value.userChangedValue) {
-        analytics.track("traces_time_range_changed", {
-          stream_name: searchObj.data.stream.selectedStream.value,
-          value_type: value.valueType,
-          relative_period: value.relativeTimePeriod,
-        });
       }
     };
 

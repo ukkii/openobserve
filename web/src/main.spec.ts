@@ -33,7 +33,6 @@ vi.mock("./locales", () => ({
 vi.mock("./aws-exports", () => ({ default: {} }));
 vi.mock("@openobserve/browser-rum", () => ({ openobserveRum: { init: rumInit } }));
 vi.mock("@openobserve/browser-logs", () => ({ openobserveLogs: { init: logsInit } }));
-vi.mock("./services/reodotdev_analytics", () => ({ useReo: () => ({ reoInit: vi.fn() }) }));
 vi.mock("./composables/contextProviders", () => ({
   contextRegistry: { register: vi.fn() },
   createDefaultContextProvider: vi.fn(),

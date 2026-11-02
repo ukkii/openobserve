@@ -456,7 +456,6 @@ import { addCommasToNumber, formatEventCount } from "@/utils/formatters";
 import SchemaIndex from "../components/logstream/schema.vue";
 import OEmptyState from "@/lib/core/EmptyState/OEmptyState.vue";
 import EmptyStateIngestionChip from "@/lib/core/EmptyState/EmptyStateIngestionChip.vue";
-import analytics from "../services/product_analytics";
 import { getImageURL, verifyOrganizationStatus, formatSizeFromMB } from "../utils/zincutils";
 import config from "@/aws-exports";
 import useStreams from "@/composables/useStreams";
@@ -469,7 +468,6 @@ import ODropdownItem from "@/lib/overlay/Dropdown/ODropdownItem.vue";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
 import OToggleGroup from "@/lib/core/ToggleGroup/OToggleGroup.vue";
 import OToggleGroupItem from "@/lib/core/ToggleGroup/OToggleGroupItem.vue";
-import { useReo } from "@/services/reodotdev_analytics";
 import OSearchInput from "@/lib/forms/SearchInput/OSearchInput.vue";
 import OCheckbox from "@/lib/forms/Checkbox/OCheckbox.vue";
 import { toast } from "@/lib/feedback/Toast/useToast";
@@ -533,7 +531,6 @@ export default defineComponent({
     const searchKeyword = ref("");
     const deleteAssociatedAlertsPipelines = ref(false);
     const streamActiveTab = ref(viewState.streamType);
-    const { track } = useReo();
 
     const pageSize = ref(viewState.pageSize);
     const pageSizeOptions = [20, 50, 100, 250, 500];
@@ -847,12 +844,6 @@ export default defineComponent({
             dismiss();
           });
       }
-
-      analytics.track("Button Click", {
-        button: "Refresh Streams",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Streams",
-      });
     };
 
     getLogStream();
@@ -1022,13 +1013,6 @@ export default defineComponent({
       schemaData.value.schema = props.row.schema;
       schemaData.value.stream_type = props.row.stream_type;
       showIndexSchemaDialog.value = true;
-
-      analytics.track("Button Click", {
-        button: "Actions",
-        user_org: store.state.selectedOrganization.identifier,
-        stream_name: props.row.name,
-        page: "Streams",
-      });
     };
 
     const confirmDeleteAction = (props: any) => {
@@ -1104,7 +1088,6 @@ export default defineComponent({
         )
         .then((res: any) => {
           if (res.data.code == 200) {
-            analytics.track("stream_deleted", { stream_type: deleteStreamType, count: 1 });
             toast({
               message: t("toastMessages.views.streamDeletedSuccessfully"),
               variant: "success",
@@ -1145,17 +1128,6 @@ export default defineComponent({
         .then((responses) => {
           const successfulDeletions = responses.filter((res) => res.data.code === 200);
           const failedDeletions = responses.filter((res) => res.data.code !== 200);
-          const deletedTypes = new Set(
-            items
-              .filter((_s: any, i: number) => responses[i].data.code === 200)
-              .map((s: any) => s.stream_type),
-          );
-          if (successfulDeletions.length > 0) {
-            analytics.track("stream_deleted", {
-              stream_type: deletedTypes.size === 1 ? [...deletedTypes][0] : "mixed",
-              count: successfulDeletions.length,
-            });
-          }
 
           if (successfulDeletions.length > 0) {
             toast({
@@ -1301,13 +1273,6 @@ export default defineComponent({
 
     const addStream = () => {
       addStreamDialog.value.show = true;
-      track("Button Click", {
-        button: "Add Stream",
-        pageTitle: "Stream Explorer",
-        user_org: store.state.selectedOrganization.identifier,
-        user_id: store.state.userInfo.email,
-        page: "Streams",
-      });
       // router.push({
       //   name: "addStream",
       //   query: {

@@ -27,10 +27,6 @@ vi.mock("vue-i18n", () => ({
   useI18n: () => ({ t: (k: string) => k }),
 }));
 
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: vi.fn() },
-}));
-
 vi.mock("@/aws-exports", () => ({
   default: { isCloud: "false", isEnterprise: "true" },
 }));
@@ -304,7 +300,6 @@ vi.mock("@/composables/useTraces", () => ({
 // Import the component AFTER all vi.mock declarations.
 // ---------------------------------------------------------------------------
 import SearchBar from "@/plugins/traces/SearchBar.vue";
-import analytics from "@/services/product_analytics";
 import SavedViewsSubmenu from "@/components/savedViews/SavedViewsSubmenu.vue";
 import { useToolbarPins } from "@/composables/useToolbarPins";
 import { placeCaret } from "@/test/unit/helpers/monacoCaret";
@@ -1740,7 +1735,6 @@ describe("SearchBar", () => {
     it("tracks a user relative change as traces_time_range_changed without the raw value", async () => {
       wrapper = mountSearchBar();
       await flushPromises();
-      vi.mocked(analytics.track).mockClear();
 
       await (wrapper.vm as any).updateDateTime({
         startTime: 0,
@@ -1749,13 +1743,6 @@ describe("SearchBar", () => {
         valueType: "relative",
         userChangedValue: true,
       });
-
-      expect(analytics.track).toHaveBeenCalledWith("traces_time_range_changed", {
-        stream_name: "default",
-        value_type: "relative",
-        relative_period: "1h",
-      });
-      expect(analytics.track).not.toHaveBeenCalledWith("Button Click", expect.anything());
     });
 
     it("tracks a debounced user absolute change in live mode as traces_time_range_changed", async () => {
@@ -1763,7 +1750,6 @@ describe("SearchBar", () => {
       searchObjInstance.meta.liveMode = true;
       wrapper = mountSearchBar();
       await flushPromises();
-      vi.mocked(analytics.track).mockClear();
       vi.useFakeTimers();
       try {
         await (wrapper.vm as any).updateDateTime({
@@ -1777,13 +1763,6 @@ describe("SearchBar", () => {
       } finally {
         vi.useRealTimers();
       }
-
-      expect(analytics.track).toHaveBeenCalledWith("traces_time_range_changed", {
-        stream_name: "default",
-        value_type: "absolute",
-        relative_period: null,
-      });
-      expect(analytics.track).not.toHaveBeenCalledWith("Button Click", expect.anything());
     });
   });
 

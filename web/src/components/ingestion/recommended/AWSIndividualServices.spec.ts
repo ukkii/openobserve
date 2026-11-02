@@ -63,10 +63,6 @@ vi.mock("@/utils/awsIntegrations", () => ({
   generateCloudFormationURL: vi.fn(() => "https://console.aws.amazon.com/cloudformation"),
 }));
 
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: vi.fn() },
-}));
-
 vi.mock("./AWSIntegrationTile.vue", () => ({
   default: {
     name: "AWSIntegrationTile",

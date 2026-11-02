@@ -333,9 +333,7 @@ import type { OTableColumnDef } from "@/lib/core/Table/OTable.types";
 import jsTransformService from "../../services/jstransform";
 import OEmptyState from "@/lib/core/EmptyState/OEmptyState.vue";
 import ConfirmDialog from "../ConfirmDialog.vue";
-import analytics from "../../services/product_analytics";
 import { getImageURL, verifyOrganizationStatus } from "../../utils/zincutils";
-import { useReo } from "@/services/reodotdev_analytics";
 import searchState from "@/composables/useLogs/searchState";
 import OButton from "@/lib/core/Button/OButton.vue";
 import OBadge from "@/lib/core/Badge/OBadge.vue";
@@ -408,7 +406,6 @@ export default defineComponent({
       sortOrder: "asc" as "asc" | "desc",
     });
     const filterQuery = ref(viewState.filterQuery);
-    const { track } = useReo();
     const functionDrafts = useEditorDraftIds("function");
     const dropFunctionDrafts = (names: string[]) => {
       const org = store.state.selectedOrganization.identifier;
@@ -590,10 +587,8 @@ export default defineComponent({
 
     const showAddUpdateFn = (props: any) => {
       formData.value = props.row;
-      let action;
       if (!props.row) {
         isUpdated.value = false;
-        action = "Add Function";
         router.push({
           name: "functionList",
           query: {
@@ -601,13 +596,8 @@ export default defineComponent({
             org_identifier: store.state.selectedOrganization.identifier,
           },
         });
-        track("Button Click", {
-          button: "Add Function",
-          page: "Functions",
-        });
       } else {
         isUpdated.value = true;
-        action = "Update Function";
         router.push({
           name: "functionList",
           query: {
@@ -616,18 +606,8 @@ export default defineComponent({
             org_identifier: store.state.selectedOrganization.identifier,
           },
         });
-        track("Button Click", {
-          button: "Update Function",
-          page: "Functions",
-        });
       }
       addTransform();
-
-      analytics.track("Button Click", {
-        button: action,
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Functions",
-      });
     };
 
     const refreshList = () => {
@@ -696,14 +676,6 @@ export default defineComponent({
             });
           }
         });
-
-      analytics.track("Button Click", {
-        button: "Delete Function",
-        user_org: store.state.selectedOrganization.identifier,
-        function_name: selectedDelete.value.name,
-        is_ingest_func: selectedDelete.value.ingest,
-        page: "Functions",
-      });
     };
 
     const showDeleteDialogFn = (props: any) => {

@@ -183,7 +183,6 @@ import {
   type FirstSourceId,
 } from "./firstSourceOptions";
 import billings from "@/services/billings";
-import analytics from "@/services/product_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { useI18nTyped } from "@/types/i18n";
 import { getImageURL } from "@/utils/zincutils";
@@ -241,14 +240,7 @@ const finish = (answers: GetStartedAnswers) => {
   if (guideRoute) suppressConnectPrompt();
   // Notify first-login follow-ups (e.g. the community Slack invite) that the onboarding form is done.
   window.dispatchEvent(new CustomEvent("o2:onboarding-complete"));
-  const firstSource = answers.firstSource ?? null;
-  analytics.track("onboarding_get_started_submitted", {
-    first_source: firstSource,
-    skipped: answers.skipped,
-  });
-  if (answers.skipped) {
-    analytics.track("onboarding_questions_skipped", { first_source: firstSource });
-  } else {
+  if (!answers.skipped) {
     toast({ message: t("toastMessages.login.thankYouForYourFeedback"), variant: "success" });
   }
   if (guideRoute) router.push({ name: guideRoute, query: { org_identifier: org } });

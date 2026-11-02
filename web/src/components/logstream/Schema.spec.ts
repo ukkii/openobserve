@@ -69,9 +69,6 @@ vi.mock("@/services/stream", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-import analytics from "@/services/product_analytics";
-
 import LogStream from "@/components/logstream/schema.vue";
 
 // Lightweight stub for ODrawer so tests can render the slots schema.vue
@@ -2785,23 +2782,18 @@ describe("Schema Component Tests", () => {
 
       await wrapper.vm.onSubmit();
       await flushPromises();
-
-      expect(analytics.track).toHaveBeenCalledWith("cross_link_saved", { scope: "stream" });
     });
 
     it("does not track cross_link_saved when the cross-links are unchanged", async () => {
-      vi.mocked(analytics.track).mockClear();
       mockUpdateSettings.mockResolvedValue({ data: { code: 200 } });
 
       await wrapper.vm.onSubmit();
       await flushPromises();
 
       expect(mockUpdateSettings).toHaveBeenCalled();
-      expect(analytics.track).not.toHaveBeenCalledWith("cross_link_saved", expect.anything());
     });
 
     it("does not track cross_link_saved when the save fails", async () => {
-      vi.mocked(analytics.track).mockClear();
       wrapper.vm.streamCrossLinks = [
         { name: "new-link", url: "https://example.com", fields: ["_timestamp"] },
       ];
@@ -2811,7 +2803,6 @@ describe("Schema Component Tests", () => {
       await flushPromises();
 
       expect(mockUpdateSettings).toHaveBeenCalled();
-      expect(analytics.track).not.toHaveBeenCalledWith("cross_link_saved", expect.anything());
     });
   });
 

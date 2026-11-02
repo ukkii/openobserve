@@ -54,9 +54,6 @@ vi.mock("@/lib/feedback/Toast/useToast", () => ({
 }));
 
 const track = vi.fn();
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: (...args: unknown[]) => track(...args) },
-}));
 
 const ORG = "test-org";
 const EMAIL = "test@example.com";

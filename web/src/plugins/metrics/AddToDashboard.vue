@@ -68,7 +68,6 @@ import OBanner from "@/lib/feedback/Banner/OBanner.vue";
 import { useRouter } from "vue-router";
 import useNotifications from "@/composables/useNotifications";
 import { toast } from "@/lib/feedback/Toast/useToast";
-import analytics from "@/services/product_analytics";
 import {
   makeAddToDashboardSchema,
   addToDashboardDefaults,
@@ -178,7 +177,6 @@ export default defineComponent({
 
       const multi = props.panels && props.panels.length > 0;
       // Counted per write: a later panel failing does not undo the ones already saved.
-      let written = 0;
       try {
         dismiss = toast({
           message: multi
@@ -197,7 +195,6 @@ export default defineComponent({
             panelData.id = getPanelId();
             if (!panelData.title) panelData.title = panelTitle;
             await addPanel(store, dashboardId, panelData, folderId, tabId);
-            written++;
           }
         } else {
           dashboardPanelData.value.data.id = getPanelId();
@@ -205,7 +202,6 @@ export default defineComponent({
           dashboardPanelData.value.data.title = panelTitle;
           // to create panel dashboard id, paneldata and folderId is required
           await addPanel(store, dashboardId, dashboardPanelData.value.data, folderId, tabId);
-          written++;
         }
         toast({
           message: multi
@@ -229,7 +225,6 @@ export default defineComponent({
           showErrorNotification(error?.message ?? t("metrics.addToDashboardPage.errorAddingPanel"));
         }
       } finally {
-        if (written > 0) analytics.track("panel_added_to_dashboard", { panel_count: written });
         dismiss();
         emit("save");
       }

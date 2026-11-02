@@ -234,7 +234,6 @@ import { generateARMTemplateURL, azureIntegrations } from "@/utils/azureIntegrat
 import CredentialCodeBlock from "@/components/ingestion/CredentialCodeBlock.vue";
 import FirstEventStatus from "@/components/ingestion/FirstEventStatus.vue";
 import { provideSnippetCopied } from "@/composables/firstEvent/firstEventCopied";
-import analytics from "@/services/product_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 
 const SCRIPT_URL =
@@ -323,10 +322,6 @@ export default defineComponent({
 
       const url = generateARMTemplateURL(activityLogsIntegration, endpointUrl, email, passcode);
       window.open(url, "_blank", "noopener,noreferrer");
-
-      analytics.track("Azure Activity Logs Deploy Started", {
-        integration_id: "activity-logs",
-      });
 
       toast({
         variant: "info",

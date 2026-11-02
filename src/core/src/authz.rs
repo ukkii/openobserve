@@ -578,6 +578,39 @@ pub async fn check_permissions(
 }
 
 #[cfg(not(feature = "enterprise"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ViewerRouteClass {
+    Read,
+    Mutation,
+}
+
+#[cfg(not(feature = "enterprise"))]
+const VIEWER_READ_POST_ROUTES: &[&str] = &[
+    "/{org_id}/_search",
+    "/{org_id}/_search_partition",
+    "/{org_id}/_search_multi",
+    "/{org_id}/_search_multi_stream",
+    "/{org_id}/_search_partition_multi",
+    "/{org_id}/_search_stream",
+    "/{org_id}/_values_stream",
+    "/{org_id}/result_schema",
+    "/{org_id}/{stream_name}/_around",
+    "/{org_id}/{stream_name}/profiles/series",
+    "/{org_id}/{stream_name}/profiles/merge",
+    "/{org_id}/{stream_name}/profiles/diff",
+    "/{org_id}/prometheus/api/v1/query",
+    "/{org_id}/prometheus/api/v1/query_range",
+    "/{org_id}/prometheus/api/v1/query_exemplars",
+    "/{org_id}/prometheus/api/v1/series",
+    "/{org_id}/prometheus/api/v1/labels",
+    "/{org_id}/prometheus/api/v1/format_query",
+    "/{org_id}/prometheus/api/v1/parse_tree",
+];
+
+#[cfg(not(feature = "enterprise"))]
+const VIEWER_MUTATION_ROUTES: &str = include_str!("viewer_mutation_routes.txt");
+
+#[cfg(not(feature = "enterprise"))]
 fn viewer_request_allowed(method: &str, path: &str) -> bool {
     viewer_request_allowed_with_base_uri(method, path, &config::get_config().common.base_uri)
 }
@@ -589,32 +622,23 @@ fn viewer_request_allowed_with_base_uri(method: &str, path: &str, base_uri: &str
     if matches!(method, "GET" | "HEAD") {
         return !matches!(path, "/{org_id}/passcode" | "/{org_id}/rumtoken");
     }
-    if method != "POST" {
-        return false;
-    }
+    classify_viewer_non_get(method, path) == Some(ViewerRouteClass::Read)
+}
 
-    matches!(
-        path,
-        "/{org_id}/_search"
-            | "/{org_id}/_search_partition"
-            | "/{org_id}/_search_multi"
-            | "/{org_id}/_search_multi_stream"
-            | "/{org_id}/_search_partition_multi"
-            | "/{org_id}/_search_stream"
-            | "/{org_id}/_values_stream"
-            | "/{org_id}/result_schema"
-            | "/{org_id}/{stream_name}/_around"
-            | "/{org_id}/{stream_name}/profiles/series"
-            | "/{org_id}/{stream_name}/profiles/merge"
-            | "/{org_id}/{stream_name}/profiles/diff"
-            | "/{org_id}/prometheus/api/v1/query"
-            | "/{org_id}/prometheus/api/v1/query_range"
-            | "/{org_id}/prometheus/api/v1/query_exemplars"
-            | "/{org_id}/prometheus/api/v1/series"
-            | "/{org_id}/prometheus/api/v1/labels"
-            | "/{org_id}/prometheus/api/v1/format_query"
-            | "/{org_id}/prometheus/api/v1/parse_tree"
-    )
+#[cfg(not(feature = "enterprise"))]
+pub fn classify_viewer_non_get(method: &str, path: &str) -> Option<ViewerRouteClass> {
+    let path = path.strip_prefix("/api").unwrap_or(path);
+    let key = format!("{method} {path}");
+    if method == "HEAD" {
+        return Some(ViewerRouteClass::Read);
+    }
+    if method == "POST" && VIEWER_READ_POST_ROUTES.contains(&path) {
+        return Some(ViewerRouteClass::Read);
+    }
+    VIEWER_MUTATION_ROUTES
+        .lines()
+        .any(|route| route == key)
+        .then_some(ViewerRouteClass::Mutation)
 }
 
 pub async fn list_objects_for_user(

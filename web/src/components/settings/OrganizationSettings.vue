@@ -145,7 +145,6 @@ import OSeparator from "@/lib/core/Separator/OSeparator.vue";
 import OTooltip from "@/lib/overlay/Tooltip/OTooltip.vue";
 import config from "@/aws-exports";
 import { toast } from "@/lib/feedback/Toast/useToast";
-import analytics from "@/services/product_analytics";
 import {
   makeOrganizationSettingsSchema,
   type OrganizationSettingsForm,
@@ -209,12 +208,7 @@ const saveOrgSettings = async (value: OrganizationSettingsForm) => {
       payload.ai_rca_thread_tool_output = value.aiRcaThreadToolOutput;
     }
 
-    const crossLinksChanged =
-      JSON.stringify(crossLinks.value) !==
-      JSON.stringify(store.state?.organizationData?.organizationSettings?.cross_links || []);
-
     await updateOrgSettings.mutateAsync(payload);
-    if (crossLinksChanged) analytics.track("cross_link_saved", { scope: "org" });
 
     const updatedSettings: any = {
       ...store.state?.organizationData?.organizationSettings,

@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "@/services/http";
-import analytics from "./product_analytics";
 
 // ─── LLM Annotation · Direct annotation ─────────────────────────────────────
 // Scoring a trace/span/session WITHOUT a queue: the reviewer picks dimensions
@@ -65,7 +64,6 @@ const llmAnnotationsService = {
         reasoning: score.reasoning?.trim() ? score.reasoning.trim() : null,
       })),
     });
-    analytics.track("llm_annotation_created", { scope: payload.scope });
     const data = res.data ?? {};
     return {
       annotationId: data.annotationId ?? data.annotation_id ?? "",

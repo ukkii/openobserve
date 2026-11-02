@@ -1,15 +1,8 @@
-import { mount, flushPromises } from "@vue/test-utils";
+import { mount } from "@vue/test-utils";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import IngestMetrics from "@/components/ingestion/metrics/Index.vue";
 import i18n from "@/locales";
 import store from "@/test/unit/helpers/store";
-
-// Mock services
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
 
 vi.mock("@/utils/zincutils", () => ({
   getImageURL: vi.fn(() => "mock-image-url"),
@@ -356,47 +349,6 @@ describe("IngestMetrics Component", () => {
         errorMessage: "Error while copy content.",
         timeout: 5000,
       });
-    });
-
-    it("should track product analytics on successful copy", async () => {
-      const { copyToClipboard } = await import("@/utils/clipboard");
-      vi.mocked(copyToClipboard).mockResolvedValueOnce(true);
-      const analytics = await import("@/services/product_analytics");
-
-      mockRouter.currentRoute.value.name = "otelCollector";
-      wrapper.vm.copyToClipboardFn({ innerText: "otel snippet" });
-      await flushPromises();
-
-      expect(analytics.default.track).toHaveBeenCalledWith("Button Click", {
-        button: "Copy to Clipboard",
-        ingestion: "otelCollector",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Ingestion",
-      });
-    });
-
-    it("should NOT track product analytics when copy fails", async () => {
-      const { copyToClipboard } = await import("@/utils/clipboard");
-      vi.mocked(copyToClipboard).mockRejectedValueOnce(new Error("fail"));
-      const analytics = await import("@/services/product_analytics");
-
-      mockRouter.currentRoute.value.name = "telegraf";
-      wrapper.vm.copyToClipboardFn({ innerText: "telegraf snippet" });
-      await flushPromises();
-
-      expect(analytics.default.track).not.toHaveBeenCalled();
-    });
-
-    it("should NOT track product analytics when copy resolves false", async () => {
-      const { copyToClipboard } = await import("@/utils/clipboard");
-      vi.mocked(copyToClipboard).mockResolvedValueOnce(false);
-      const analytics = await import("@/services/product_analytics");
-
-      mockRouter.currentRoute.value.name = "prometheus";
-      wrapper.vm.copyToClipboardFn({ innerText: "some snippet" });
-      await flushPromises();
-
-      expect(analytics.default.track).not.toHaveBeenCalled();
     });
 
     it("should handle empty innerText gracefully", async () => {

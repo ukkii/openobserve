@@ -6,7 +6,6 @@
 // (at your option) any later version.
 
 import http from "@/services/http";
-import analytics from "./product_analytics";
 
 export type PromptType = "text" | "chat";
 export type PromptStatus = "active" | "archived";
@@ -166,9 +165,7 @@ const llmPromptsService = {
       ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
     });
     // created=false means identical content was deduped; replayed means an idempotent retry.
-    if (response.data?.created === true && !response.data?.replayed) {
-      analytics.track("llm_prompt_created", { type: input.type });
-    }
+
     return response.data;
   },
 
@@ -203,9 +200,7 @@ const llmPromptsService = {
       params: options.ifHead == null ? undefined : { if_head: options.ifHead },
       ...(options.idempotencyKey ? { headers: { "Idempotency-Key": options.idempotencyKey } } : {}),
     });
-    if (response.data?.created === true && !response.data?.replayed) {
-      analytics.track("llm_prompt_version_created");
-    }
+
     return response.data;
   },
 

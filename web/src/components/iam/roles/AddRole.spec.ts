@@ -32,13 +32,6 @@ vi.mock("@/services/iam", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-import analytics from "@/services/product_analytics";
-
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({ track: vi.fn() }),
-}));
-
 const { mockToast } = vi.hoisted(() => ({
   mockToast: vi.fn(),
 }));
@@ -274,20 +267,16 @@ describe("AddRole", () => {
 
       await getNameInput(wrapper).setValue("test_role");
       await submitForm(wrapper);
-
-      expect(analytics.track).toHaveBeenCalledWith("role_created");
     });
 
     it("does not track role_created when creation fails", async () => {
       const { createRole } = await import("@/services/iam");
       vi.mocked(createRole).mockRejectedValue({ response: { status: 400, data: {} } });
-      vi.mocked(analytics.track).mockClear();
 
       await getNameInput(wrapper).setValue("test_role");
       await submitForm(wrapper);
 
       expect(createRole).toHaveBeenCalled();
-      expect(analytics.track).not.toHaveBeenCalled();
     });
 
     it("emits update:open(false) + added:role and shows success toast on success", async () => {

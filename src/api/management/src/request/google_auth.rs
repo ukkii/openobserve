@@ -19,7 +19,7 @@ use std::{
 };
 
 use axum::{
-    Json,
+    Extension, Json,
     extract::Query,
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
@@ -29,23 +29,26 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use config::{get_config, meta::user::UserRole};
+use config::{axum::middlewares::RealIp, get_config, meta::user::UserRole};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use time::{Duration as CookieDuration, OffsetDateTime};
 use url::Url;
 
+use crate::request::public_rate_limit::{Counters, client_ip, too_many_requests};
+
 const DISCOVERY_URL: &str = "https://accounts.google.com/.well-known/openid-configuration";
 const STATE_COOKIE: &str = "o2_google_state";
 const SESSION_COOKIE: &str = "o2_session";
 const LOGIN_TTL_SECS: u64 = 600;
-const PENDING_LOGIN_PREFIX: &str = "google_pending:";
+const LOGIN_RATE_WINDOW: Duration = Duration::from_secs(60);
 
 static JWKS_CACHE: LazyLock<tokio::sync::RwLock<Option<CachedJwks>>> =
     LazyLock::new(|| tokio::sync::RwLock::new(None));
 static DISCOVERY_CACHE: LazyLock<tokio::sync::RwLock<Option<CachedDiscovery>>> =
     LazyLock::new(|| tokio::sync::RwLock::new(None));
+static LOGIN_ATTEMPTS: LazyLock<Counters> = LazyLock::new(Counters::default);
 
 #[derive(Deserialize, Serialize)]
 struct PendingLogin {
@@ -101,7 +104,14 @@ pub fn is_enabled() -> bool {
     valid_config().is_some()
 }
 
-pub async fn login(cookies: CookieJar) -> Response {
+pub async fn login(cookies: CookieJar, ip: Option<Extension<RealIp>>) -> Response {
+    if login_rate_limited(
+        ip.map(|value| value.0),
+        &LOGIN_ATTEMPTS,
+        get_config().auth.google_login_rpm,
+    ) {
+        return too_many_requests(LOGIN_RATE_WINDOW);
+    }
     let Some((client_id, _, redirect_url)) = valid_config() else {
         return (StatusCode::NOT_FOUND, "Google login is disabled").into_response();
     };
@@ -335,7 +345,11 @@ fn build_authorization_url(
 }
 
 fn pending_key(state: &str) -> String {
-    format!("{PENDING_LOGIN_PREFIX}{state}")
+    format!("{}{state}", db::session::PENDING_LOGIN_PREFIX)
+}
+
+fn login_rate_limited(ip: Option<RealIp>, attempts: &Counters, rpm: u32) -> bool {
+    rpm != 0 && attempts.over_budget(&client_ip(ip), LOGIN_RATE_WINDOW, rpm)
 }
 
 fn session_expiry(now: i64, ttl_secs: i64) -> i64 {
@@ -537,9 +551,19 @@ fn auth_error(status: StatusCode, error: impl std::fmt::Display) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{
+        collections::HashMap,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
 
-    use common::infra::config::{USER_SESSIONS, USER_SESSIONS_EXPIRY};
+    use axum::{Router, extract::State, routing::post};
+    use common::{
+        infra::config::{USER_SESSIONS, USER_SESSIONS_EXPIRY},
+        meta::organization::{CUSTOM, Organization},
+    };
     use jsonwebtoken::{EncodingKey, Header, encode};
     use serde::Serialize;
 
@@ -558,6 +582,25 @@ mod tests {
         nonce: String,
         email: String,
         email_verified: bool,
+    }
+
+    #[derive(Clone)]
+    struct TokenEndpoint {
+        calls: Arc<AtomicUsize>,
+        token: Arc<tokio::sync::RwLock<String>>,
+    }
+
+    struct ConfigRestore(Arc<config::Config>);
+
+    impl Drop for ConfigRestore {
+        fn drop(&mut self) {
+            config::CONFIG.store(self.0.clone());
+        }
+    }
+
+    async fn token_endpoint(State(state): State<TokenEndpoint>) -> Json<serde_json::Value> {
+        state.calls.fetch_add(1, Ordering::SeqCst);
+        Json(serde_json::json!({ "id_token": state.token.read().await.clone() }))
     }
 
     fn discovery() -> Discovery {
@@ -617,6 +660,62 @@ mod tests {
             infra::table::migrate().await.unwrap();
         })
         .await;
+    }
+
+    async fn callback_environment() -> (TokenEndpoint, String, tokio::task::JoinHandle<()>) {
+        let state = TokenEndpoint {
+            calls: Arc::new(AtomicUsize::new(0)),
+            token: Arc::new(tokio::sync::RwLock::new(String::new())),
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = Router::new()
+            .route("/token", post(token_endpoint))
+            .with_state(state.clone());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        (state, format!("http://{address}/token"), server)
+    }
+
+    async fn prepare_callback(token_endpoint: String) -> ConfigRestore {
+        let original = config::CONFIG.load_full();
+        let mut cfg = config::Config::default();
+        cfg.auth.google_client_id = CLIENT_ID.to_string();
+        cfg.auth.google_client_secret = "secret".to_string();
+        cfg.auth.google_redirect_url = "http://localhost:5080/config/google_callback".to_string();
+        cfg.auth.cookie_max_age = 3600;
+        cfg.common.web_url = "http://localhost:5080".to_string();
+        config::CONFIG.store(Arc::new(cfg));
+        *DISCOVERY_CACHE.write().await = Some(CachedDiscovery {
+            value: Discovery {
+                token_endpoint,
+                ..discovery()
+            },
+            expires_at: Instant::now() + Duration::from_secs(60),
+        });
+        *JWKS_CACHE.write().await = Some(CachedJwks {
+            body: serde_json::to_string(&jwks()).unwrap(),
+            expires_at: Instant::now() + Duration::from_secs(60),
+        });
+        ConfigRestore(original)
+    }
+
+    async fn run_callback(state: &str, nonce: &str) -> Response {
+        let pending = PendingLogin {
+            nonce: nonce.to_string(),
+            verifier: "verifier".to_string(),
+        };
+        store_pending(state, &pending).await.unwrap();
+        callback(
+            CookieJar::new().add(state_cookie(state.to_string(), false)),
+            Query(CallbackQuery {
+                code: Some("code".to_string()),
+                state: Some(state.to_string()),
+                error: None,
+            }),
+        )
+        .await
     }
 
     fn db_user(role: UserRole) -> config::meta::user::DBUser {
@@ -704,6 +803,15 @@ mod tests {
     }
 
     #[test]
+    fn google_login_is_rate_limited_per_client_before_creating_state() {
+        let attempts = Counters::default();
+        assert!(!login_rate_limited(None, &attempts, 2));
+        assert!(!login_rate_limited(None, &attempts, 2));
+        assert!(login_rate_limited(None, &attempts, 2));
+        assert!(!login_rate_limited(None, &Counters::default(), 0));
+    }
+
+    #[test]
     fn state_cookie_must_match_callback_state() {
         let cookies = CookieJar::new().add(state_cookie("expected".to_string(), true));
         assert!(state_matches(&cookies, "expected"));
@@ -746,6 +854,81 @@ mod tests {
         meta_store().await;
         let email = format!("missing-{}@example.com", config::ider::uuid());
         assert!(!existing_login_user(&email).await);
+    }
+
+    #[tokio::test]
+    async fn callback_rejects_nonexistent_users_and_consumed_state_replay() {
+        static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+        let _guard = LOCK.lock().await;
+        meta_store().await;
+        let (endpoint, token_url, server) = callback_environment().await;
+        let _restore = prepare_callback(token_url).await;
+
+        let missing_email = format!("missing-callback-{}@example.com", config::ider::uuid());
+        let missing_nonce = "missing-nonce";
+        let missing_claims = TestClaims {
+            nonce: missing_nonce.to_string(),
+            email: missing_email,
+            ..valid_claims()
+        };
+        *endpoint.token.write().await = signed(&missing_claims, Some(KID));
+        let missing = run_callback("missing-state", missing_nonce).await;
+        assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
+
+        let allowed_email = format!("allowed-callback-{}@example.com", config::ider::uuid());
+        let org_id = format!("google_callback_{}", config::ider::uuid().replace('-', ""));
+        db::organization::save_org(&Organization {
+            identifier: org_id.clone(),
+            name: org_id.clone(),
+            org_type: CUSTOM.to_string(),
+            service_account: None,
+        })
+        .await
+        .unwrap();
+        let mut allowed_user = db_user(UserRole::Viewer);
+        allowed_user.email = allowed_email.clone();
+        allowed_user.organizations[0].name = org_id.clone();
+        allowed_user.organizations[0].org_name = org_id.clone();
+        db::user::add(&allowed_user).await.unwrap();
+        let allowed_nonce = "allowed-nonce";
+        let allowed_claims = TestClaims {
+            nonce: allowed_nonce.to_string(),
+            email: allowed_email.clone(),
+            ..valid_claims()
+        };
+        *endpoint.token.write().await = signed(&allowed_claims, Some(KID));
+        let cookies = CookieJar::new().add(state_cookie("allowed-state".to_string(), false));
+        store_pending(
+            "allowed-state",
+            &PendingLogin {
+                nonce: allowed_nonce.to_string(),
+                verifier: "verifier".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+        let query = || {
+            Query(CallbackQuery {
+                code: Some("code".to_string()),
+                state: Some("allowed-state".to_string()),
+                error: None,
+            })
+        };
+        assert_eq!(
+            callback(cookies.clone(), query()).await.status(),
+            StatusCode::TEMPORARY_REDIRECT
+        );
+        assert_eq!(
+            callback(cookies, query()).await.status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(endpoint.calls.load(Ordering::SeqCst), 2);
+
+        db::user::delete(&allowed_email).await.unwrap();
+        db::organization::delete_org(&org_id).await.unwrap();
+        *DISCOVERY_CACHE.write().await = None;
+        *JWKS_CACHE.write().await = None;
+        server.abort();
     }
 
     #[test]

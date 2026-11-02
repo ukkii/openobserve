@@ -38,8 +38,6 @@ import {
 } from "@/services/anomaly_detection.queries";
 import { useMutation, useQuery as useServerQuery } from "@tanstack/vue-query";
 import { useOrgId } from "@/composables/query";
-import analytics from "@/services/product_analytics";
-import { useReo } from "@/services/reodotdev_analytics";
 
 import useStreams from "@/composables/useStreams";
 import useFunctions from "@/composables/useFunctions";
@@ -415,7 +413,6 @@ export function useAlertForm(props: AlertFormProps, emit: AlertFormEmit) {
   const store: any = useStore();
   const { t } = useI18nTyped();
   const router = useRouter();
-  const { track } = useReo();
   const { getAllFunctions } = useFunctions();
   const { getStreams, getStream } = useStreams(t);
   const { buildQueryPayload } = useQuery();
@@ -2477,17 +2474,6 @@ export function useAlertForm(props: AlertFormProps, emit: AlertFormEmit) {
           dismiss();
           handleAlertError(err);
         });
-      track("Button Click", {
-        button: "Update Alert",
-        page: "Alerts",
-      });
-      analytics.track("Button Click", {
-        button: "Update Alert",
-        user_org: store.state.selectedOrganization.identifier,
-        stream_name: formData.value.stream_name,
-        alert_name: formData.value.name,
-        page: "Add/Update Alert",
-      });
       return request;
     } else {
       payload.folder_id = activeFolderId.value;
@@ -2516,17 +2502,6 @@ export function useAlertForm(props: AlertFormProps, emit: AlertFormEmit) {
           dismiss();
           handleAlertError(err);
         });
-      track("Button Click", {
-        button: "Create Alert",
-        page: "Alerts",
-      });
-      analytics.track("Button Click", {
-        button: "Save Alert",
-        user_org: store.state.selectedOrganization.identifier,
-        stream_name: formData.value.stream_name,
-        alert_name: formData.value.name,
-        page: "Add/Update Alert",
-      });
       return request;
     }
   };
@@ -3202,7 +3177,6 @@ export function useAlertForm(props: AlertFormProps, emit: AlertFormEmit) {
     t,
     store,
     router,
-    track,
 
     // Core state
     beingUpdated,

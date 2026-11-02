@@ -26,7 +26,6 @@ import {
   type ListedStream,
   type OrgStreamList,
 } from "./useFirstDataNotice";
-import analytics from "@/services/product_analytics";
 
 const rows: Record<string, ListedStream[]> = { logs: [], metrics: [], traces: [] };
 const nameList = vi.fn(
@@ -39,7 +38,6 @@ const nameList = vi.fn(
 vi.mock("@/services/stream", () => ({
   default: { nameList: (...a: Parameters<typeof nameList>) => nameList(...a) },
 }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 const push = vi.fn(() => Promise.resolve());
 vi.mock("vue-router", () => ({ useRouter: () => ({ push }) }));
 const zoConfig = reactive<Record<string, unknown>>({});
@@ -124,10 +122,6 @@ describe("useFirstDataNotice", () => {
     expect(notice.visible.value).toBe(true);
     expect(notice.stream.value?.name).toBe("first");
     expect(notice.arrivedAt.value).toBe(NOW * 1000 - 2 * HOUR_US);
-    expect(analytics.track).toHaveBeenCalledTimes(1);
-    expect(analytics.track).toHaveBeenCalledWith("first_data_notice_shown", {
-      stream_type: "logs",
-    });
     expect(readFirstDataRecord(ORG)).toMatchObject({ hadData: true, shown: true });
   });
 
@@ -233,7 +227,6 @@ describe("useFirstDataNotice", () => {
     await flushPromises();
     expect(notice.visible.value).toBe(false);
     expect(readFirstDataRecord(EMPTY)).toEqual({ lastVisit: 1, hadData: false });
-    expect(analytics.track).not.toHaveBeenCalled();
     layoutStreams.value = { org: EMPTY, list: [] };
     await nextTick();
     await flushPromises();
@@ -247,7 +240,6 @@ describe("useFirstDataNotice", () => {
     const { notice } = noticeOf();
     await flushPromises();
     expect(notice.visible.value).toBe(false);
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 
   it("stays away when the green bar was seen in this browser", async () => {

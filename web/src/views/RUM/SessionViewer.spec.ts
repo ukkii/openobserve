@@ -49,8 +49,6 @@ const queryPayload = vi.hoisted(() => ({
   build: null as any,
 }));
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-
 const heatmapOpen = vi.hoisted(() => vi.fn());
 vi.mock("@/composables/rum/useSessionHeatmap", async () => {
   const { ref } = await import("vue");
@@ -190,7 +188,6 @@ import searchService from "@/services/search";
 import i18n from "@/locales";
 import { ACTIVE_WINDOW_MS } from "@/utils/rum/sessionReplayLive";
 import { b64DecodeUnicode } from "@/utils/zincutils";
-import analytics from "@/services/product_analytics";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -346,35 +343,6 @@ describe("SessionViewer.vue", () => {
       const pending = mountSessionViewer(router);
       expect(pending.text()).toContain("Unknown User");
       pending.unmount();
-    });
-  });
-
-  describe("session_replay_played analytics", () => {
-    const emitState = (state: string) =>
-      wrapper.findComponent('[data-test="stub-video-player"]').vm.$emit("playback-state", state);
-
-    it("tracks once when playback first starts, not on later resumes", async () => {
-      emitState("paused");
-      await wrapper.vm.$nextTick();
-      expect(analytics.track).not.toHaveBeenCalled();
-
-      emitState("playing");
-      await wrapper.vm.$nextTick();
-      emitState("paused");
-      await wrapper.vm.$nextTick();
-      emitState("playing");
-      await wrapper.vm.$nextTick();
-
-      expect(analytics.track).toHaveBeenCalledTimes(1);
-      expect(analytics.track).toHaveBeenCalledWith("session_replay_played", {
-        platform: "browser",
-      });
-    });
-
-    it("does not track a replay that failed to load", async () => {
-      emitState("failed");
-      await wrapper.vm.$nextTick();
-      expect(analytics.track).not.toHaveBeenCalled();
     });
   });
 

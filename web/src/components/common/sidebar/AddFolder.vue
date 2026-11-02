@@ -69,7 +69,6 @@ import { useI18nTyped } from "@/types/i18n";
 import { folderKey } from "./folderTerms";
 import { useStore } from "vuex";
 import useNotifications from "@/composables/useNotifications";
-import { useReo } from "@/services/reodotdev_analytics";
 import { makeAddFolderSchema, type AddFolderForm } from "./AddFolder.schema";
 import FolderIconField from "./FolderIconField.vue";
 import { useFolderIcons } from "@/composables/useFolderIcons";
@@ -101,7 +100,6 @@ export default defineComponent({
     const { t } = useI18nTyped();
     const addFolderSchema = makeAddFolderSchema(t);
     const { showPositiveNotification, showErrorNotification } = useNotifications();
-    const { track } = useReo();
     const { iconFor } = useFolderIcons();
 
     const findFolder = () =>
@@ -179,10 +177,6 @@ export default defineComponent({
           { timeout: 2000 },
         );
       }
-      track("Button Click", {
-        button: "Save New Folder",
-        page: "Folders",
-      });
     };
 
     return {

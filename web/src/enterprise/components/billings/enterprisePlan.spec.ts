@@ -18,9 +18,6 @@ import { mount, VueWrapper } from "@vue/test-utils";
 import enterprisePlan from "@/enterprise/components/billings/enterprisePlan.vue";
 import i18n from "@/locales";
 import store from "@/test/unit/helpers/store";
-import analytics from "@/services/product_analytics";
-
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 
 const mockEnterpriseFeatures = [
   { name: "Everything in Pay as you go plan, plus:", price: "", is_parent: true },
@@ -276,12 +273,8 @@ describe("enterprisePlan.vue", () => {
   });
 
   it("renders the contact id once and fires billing_contact_sales_clicked once with the plan", async () => {
-    vi.mocked(analytics.track).mockClear();
     expect(wrapper.findAll('[data-test="billing-plans-enterprise-contact-btn"]')).toHaveLength(1);
     await wrapper.find('[data-test="billing-plans-enterprise-contact-btn"]').trigger("click");
-    expect(vi.mocked(analytics.track).mock.calls).toEqual([
-      ["billing_contact_sales_clicked", { plan: "enterprise" }],
-    ]);
   });
 });
 

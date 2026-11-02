@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 /** The page a saved view belongs to. A view stored before the field existed is a logs view. */
 export const viewTypeOf = (view: { view_type?: string | null }): string =>
@@ -30,7 +29,6 @@ const savedViews = {
     return http()
       .post(url, { ...data })
       .then((res) => {
-        analytics.track("saved_view_created");
         return res;
       });
   },
@@ -39,7 +37,6 @@ const savedViews = {
     return http()
       .put(url, { ...data })
       .then((res) => {
-        analytics.track("saved_view_updated");
         return res;
       });
   },
@@ -48,7 +45,6 @@ const savedViews = {
     return http()
       .delete(url)
       .then((res) => {
-        analytics.track("saved_view_deleted", { count: 1 });
         return res;
       });
   },

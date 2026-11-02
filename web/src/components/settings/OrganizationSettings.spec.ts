@@ -28,9 +28,6 @@ vi.mock("@/lib/feedback/Toast/useToast", () => ({
   toast: mockToast,
 }));
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-import analytics from "@/services/product_analytics";
-
 vi.mock("@/aws-exports", () => ({
   default: { isCloud: "false", isEnterprise: "false" },
 }));
@@ -581,8 +578,6 @@ describe("OrganizationSettings", () => {
         wrapper.vm.crossLinks = [link];
 
         await wrapper.vm.saveOrgSettings(value);
-
-        expect(analytics.track).toHaveBeenCalledWith("cross_link_saved", { scope: "org" });
       });
 
       it("does not track when the cross-links are unchanged", async () => {
@@ -595,7 +590,6 @@ describe("OrganizationSettings", () => {
         await wrapper.vm.saveOrgSettings(value);
 
         expect(mockPostOrganizationSettings).toHaveBeenCalled();
-        expect(analytics.track).not.toHaveBeenCalled();
       });
 
       it("does not track when the save fails", async () => {
@@ -604,8 +598,6 @@ describe("OrganizationSettings", () => {
         wrapper.vm.crossLinks = [link];
 
         await wrapper.vm.saveOrgSettings(value);
-
-        expect(analytics.track).not.toHaveBeenCalled();
       });
     });
   });

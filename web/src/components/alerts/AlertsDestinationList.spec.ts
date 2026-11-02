@@ -54,10 +54,6 @@ vi.mock("@/utils/zincutils", async (importOriginal) => {
   };
 });
 
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({ track: vi.fn() }),
-}));
-
 vi.mock("@/lib/feedback/Toast/useToast", () => ({
   toast: vi.fn(() => vi.fn()),
 }));

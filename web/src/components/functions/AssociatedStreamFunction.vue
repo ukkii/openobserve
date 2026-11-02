@@ -171,7 +171,6 @@ import jsTransformService from "../../services/jstransform";
 import streamService from "../../services/stream";
 import SchemaIndex from "../logstream/schema.vue";
 import NoData from "../shared/grid/NoData.vue";
-import analytics from "../../services/product_analytics";
 import { getImageURL, verifyOrganizationStatus } from "@/utils/zincutils";
 import useStreams from "@/composables/useStreams";
 import OButton from "@/lib/core/Button/OButton.vue";
@@ -415,12 +414,6 @@ export default defineComponent({
             });
           });
       }
-
-      analytics.track("Button Click", {
-        button: "Refresh Streams",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Streams",
-      });
     };
 
     const filterFn = (val: string) => {
@@ -521,21 +514,6 @@ export default defineComponent({
           addFunctionInProgressLoading.value = false;
         });
     };
-
-    // const listSchema = (props: any) => {
-    //   schemaData.value.name = props.row.name;
-    //   schemaData.value.schema = props.row.schema;
-    //   schemaData.value.stream_type = props.row.stream_type;
-    //   showIndexSchemaDialog.value = true;
-
-    //   analytics.track("Button Click", {
-    //     button: "Actions",
-    //     user_org: store.state.selectedOrganization.identifier,
-    //     user_id: store.state.userInfo.email,
-    //     stream_name: props.row.name,
-    //     page: "Streams",
-    //   });
-    // };
 
     const pageSize = ref<number>(20);
     const pageSizeOptions = [5, 10, 20, 50, 100];

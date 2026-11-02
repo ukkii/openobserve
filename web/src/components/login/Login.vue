@@ -246,7 +246,6 @@ import OButton from "@/lib/core/Button/OButton.vue";
 import OBanner from "@/lib/feedback/Banner/OBanner.vue";
 import OForm from "@/lib/forms/Form/OForm.vue";
 import OFormInput from "@/lib/forms/Input/OFormInput.vue";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { makeLoginSchema, loginDefaults, type LoginForm } from "./Login.schema";
 
@@ -285,8 +284,6 @@ export default defineComponent({
     const selectedOrg = ref({});
     const autoRedirectDexLogin = ref(false);
     let orgOptions = ref([{ label: Number, value: String }]);
-    useReo();
-
     const submitting = ref(false);
 
     const loginAsInternalUser = ref(false);

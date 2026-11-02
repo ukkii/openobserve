@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 import type {
   AckAlertRequest,
   AckAlertResponse,
@@ -95,7 +94,6 @@ const alerts = {
     return http()
       .post(`/api/${org_identifier}/${stream_name}/alerts?type=${stream_type}`, data)
       .then((res) => {
-        analytics.track("alert_created");
         return res;
       });
   },
@@ -151,7 +149,6 @@ const alerts = {
     return http()
       .post(url, data)
       .then((res) => {
-        analytics.track("alert_created");
         return res;
       });
   },
@@ -165,14 +162,12 @@ const alerts = {
       return http()
         .put(url, body)
         .then((res) => {
-          analytics.track("alert_updated");
           return res;
         });
     }
     return http()
       .put(url, data)
       .then((res) => {
-        analytics.track("alert_updated");
         return res;
       });
   },
@@ -184,7 +179,6 @@ const alerts = {
     return http()
       .delete(url)
       .then((res) => {
-        analytics.track("alert_deleted", { count: 1 });
         return res;
       });
   },
@@ -201,7 +195,6 @@ const alerts = {
     return http()
       .patch(url)
       .then((res) => {
-        analytics.track(enable ? "alert_enabled" : "alert_disabled", { count: 1 });
         return res;
       });
   },
@@ -213,8 +206,6 @@ const alerts = {
     return http()
       .post(url, data)
       .then((res) => {
-        const count = res.data?.successful?.length ?? 0;
-        if (count > 0) analytics.track(enable ? "alert_enabled" : "alert_disabled", { count });
         return res;
       });
   },
@@ -226,8 +217,6 @@ const alerts = {
     return http()
       .delete(url, { data })
       .then((res) => {
-        const count = res.data?.successful?.length ?? 0;
-        if (count > 0) analytics.track("alert_deleted", { count });
         return res;
       });
   },
@@ -330,7 +319,6 @@ const alerts = {
     return http()
       .patch(url)
       .then((res) => {
-        analytics.track("alert_manually_triggered");
         return res;
       });
   },
@@ -351,7 +339,6 @@ const alerts = {
     return http()
       .post(url, data)
       .then((res) => {
-        analytics.track("alert_created");
         return res;
       });
   },
@@ -364,7 +351,6 @@ const alerts = {
     return http()
       .patch(`/api/v2/${org_identifier}/alerts/${alert_id}/retrain`)
       .then((res) => {
-        analytics.track("anomaly_detection_training_started");
         return res;
       });
   },

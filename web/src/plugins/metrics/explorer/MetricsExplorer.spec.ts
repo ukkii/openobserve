@@ -155,7 +155,6 @@ const showErrorNotification = vi.hoisted(() => vi.fn());
 vi.mock("@/composables/useNotifications", () => ({
   default: () => ({ showErrorNotification }),
 }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@tanstack/vue-virtual", () => ({
   useVirtualizer: () =>
     computed(() => ({
@@ -173,7 +172,6 @@ vi.mock("@/lib/vue-shortcut-manager", async (importOriginal) => ({
 }));
 
 import MetricsExplorer from "./MetricsExplorer.vue";
-import analytics from "@/services/product_analytics";
 import { isCancelled } from "@/composables/metrics/useMetricsPreviewQueue";
 import { cardColorForIndex } from "@/utils/metrics/metricPalette";
 import { installFakeIntersectionObserver } from "@/test/unit/helpers/intersectionObserverFake";
@@ -1257,10 +1255,6 @@ describe("MetricsExplorer wiring", () => {
       expect(detailView(wrapper).exists()).toBe(true);
       // The mode is untouched — closing returns to whichever grid was showing.
       expect((wrapper.vm as any).mode).toBe("explore");
-      expect(analytics.track).toHaveBeenCalledWith(
-        "metrics_explorer_detail_opened",
-        expect.objectContaining({ card_kind: CARD.cardKind }),
-      );
     });
 
     it("wires the actions moved off the card to what the card's icons did", async () => {
@@ -1519,10 +1513,6 @@ describe("MetricsExplorer wiring", () => {
       expect(routerState.push.mock.calls.at(-1)[0].query).toMatchObject({
         metric: "http_responses_total",
       });
-      expect(analytics.track).toHaveBeenCalledWith(
-        "metrics_explorer_related_opened",
-        expect.any(Object),
-      );
 
       // Back: the router restores the first metric's entry.
       routerState.query = { metric: "http_responses_total" };
@@ -1559,10 +1549,6 @@ describe("MetricsExplorer wiring", () => {
         operator: "=",
         value: "500",
       });
-      expect(analytics.track).toHaveBeenCalledWith(
-        "metrics_explorer_breakdown_filter_added",
-        expect.objectContaining({ operator: "=" }),
-      );
     });
 
     it("hands the detail view the filters its metric cannot apply, and the eligibility rule", () => {
@@ -1896,10 +1882,6 @@ describe("MetricsExplorer wiring", () => {
         name: "metrics",
         query: { org_identifier: "org1", sort: "z-a", prefix: "node" },
       });
-      expect(analytics.track).toHaveBeenCalledWith(
-        "metrics_explorer_view_applied",
-        expect.any(Object),
-      );
     });
 
     it("clearing a view lands on the default grid: no search, facets, labels, sort or period, but auto-refresh kept", async () => {
@@ -1951,10 +1933,6 @@ describe("MetricsExplorer wiring", () => {
     it("tracks a saved view", async () => {
       const wrapper = mountExplorer();
       wrapper.findComponent(VIEWS).vm.$emit("saved", "created");
-      expect(analytics.track).toHaveBeenCalledWith(
-        "metrics_explorer_view_saved",
-        expect.objectContaining({ action: "created" }),
-      );
     });
 
     it("a URL change with a new range sets the picker, not just the model", async () => {
@@ -2175,10 +2153,6 @@ describe("MetricsExplorer wiring", () => {
         .findComponent('[data-test="metrics-history"]')
         .vm.$emit("load", { metricsData: "blob", timeRange, run: true });
       expect(visualizeApplyPanelData).toHaveBeenCalledWith("blob", timeRange, true);
-      expect(analytics.track).toHaveBeenCalledWith(
-        "metrics_explorer_history_loaded",
-        expect.any(Object),
-      );
     });
 
     it("passes a load-only pick through without running", async () => {

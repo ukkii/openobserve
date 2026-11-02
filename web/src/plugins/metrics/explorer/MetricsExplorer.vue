@@ -508,7 +508,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
             :state="viewState"
             @apply="onApplyView"
             @clear="onClearView"
-            @saved="onViewSaved"
           />
 
           <!-- Convert to dashboard: each favourite becomes a panel. FAVOURITES
@@ -842,7 +841,6 @@ import {
 import { pickerSavedDate } from "@/utils/metrics/queryHistory";
 import type { ExplorerViewState } from "@/utils/metrics/explorerSavedView";
 import type { MetricCard as MetricCardModel } from "@/utils/metrics/metricFamily";
-import analytics from "@/services/product_analytics";
 import { useShortcuts } from "@/lib/vue-shortcut-manager";
 import { isInputFocused } from "@/utils/keyboardShortcuts";
 
@@ -1337,7 +1335,6 @@ export default defineComponent({
     const selectedTypesArray = computed(() => [...grid.selectedTypes.value]);
     const onSelectedTypesChange = (next: (string | number | boolean)[]) => {
       grid.selectedTypes.value = new Set(next.map(String));
-      trackFilter("type");
     };
 
     // Type-rail search — narrows the type LIST (mirrors the prefix/suffix rails).
@@ -1355,11 +1352,9 @@ export default defineComponent({
 
     const onPrefixChange = (next: Set<string>) => {
       grid.selectedPrefixes.value = next;
-      trackFilter("prefix");
     };
     const onSuffixChange = (next: Set<string>) => {
       grid.selectedSuffixes.value = next;
-      trackFilter("suffix");
     };
 
     /**
@@ -1372,7 +1367,6 @@ export default defineComponent({
      */
     const onAddLabelFilter = async (filter: LabelFilter) => {
       await grid.addLabelFilter(filter);
-      trackFilter("label");
       await requestOnScreen({ skipCache: true });
     };
 
@@ -1434,11 +1428,6 @@ export default defineComponent({
       if (!card) return;
       grid.setOverride(card.name, payload);
       grid.requestPreview(card);
-      track("metrics_explorer_fn_override", {
-        action: "applied",
-        card_kind: card.cardKind,
-        variant_id: payload.variantId,
-      });
       dialogOpen.value = false;
     };
 
@@ -1447,11 +1436,6 @@ export default defineComponent({
       if (!card) return;
       grid.setOverride(card.name, null);
       grid.requestPreview(card);
-      track("metrics_explorer_fn_override", {
-        action: "restored",
-        card_kind: card.cardKind,
-        variant_id: "",
-      });
       dialogOpen.value = false;
     };
 
@@ -1541,11 +1525,6 @@ export default defineComponent({
         percentileWindow: PANEL_PERCENTILE_WINDOW,
       });
       if (!resolved) return;
-
-      track("metrics_explorer_card_selected", {
-        card_kind: card.cardKind,
-        had_override: !!grid.overrides.value[card.name],
-      });
 
       // Open IN-PAGE Visualize (not the separate editor route), seeded with the
       // card's type-aware panel data — so Visualize opens on the same query the
@@ -1659,7 +1638,6 @@ export default defineComponent({
 
     const openDetail = (card: MetricCardModel) => {
       showDetail(card.name);
-      track("metrics_explorer_detail_opened", { card_kind: card.cardKind });
     };
 
     const closeDetail = () => {
@@ -1683,19 +1661,13 @@ export default defineComponent({
 
     const onBreakdownLabel = (label: string | null) => {
       breakdownLabel.value = label;
-      if (label)
-        track("metrics_explorer_breakdown_label_selected", {
-          card_kind: detailCard.value?.cardKind,
-        });
     };
 
     const onOpenRelated = (name: string) => {
-      track("metrics_explorer_related_opened", { card_kind: detailCard.value?.cardKind });
       showDetail(name);
     };
 
     const onBreakdownAddFilter = async (filter: LabelFilter) => {
-      track("metrics_explorer_breakdown_filter_added", { operator: filter.operator ?? "=" });
       await onAddLabelFilter(filter);
     };
 
@@ -1806,7 +1778,6 @@ export default defineComponent({
           query: { org_identifier: store.state.selectedOrganization?.identifier, ...query },
         })
         .catch(() => {});
-      track("metrics_explorer_view_applied", { key_count: Object.keys(query).length });
     };
 
     // A bare URL is a fresh visit: the route watcher resets every absent key to its default.
@@ -1823,9 +1794,6 @@ export default defineComponent({
         })
         .catch(() => {});
     };
-
-    const onViewSaved = (action: "created" | "updated") =>
-      track("metrics_explorer_view_saved", { action });
 
     /* -------------------------------------------- convert to dashboard */
 
@@ -2161,9 +2129,6 @@ export default defineComponent({
       // `on:date-change` -> `onDateChange` -> skipCache + sweep. This is exactly
       // why ViewDashboard.onDataZoom calls it too; the pair is the contract.
       dateTimePickerRef.value?.refresh?.();
-      track("metrics_explorer_card_zoomed", {
-        window_seconds: Math.round((range.end.getTime() - range.start.getTime()) / 1000),
-      });
     };
 
     /**
@@ -2241,7 +2206,6 @@ export default defineComponent({
       run?: boolean;
     }) => {
       visualizeRef.value?.applyPanelData?.(entry.metricsData, entry.timeRange, entry.run !== false);
-      track("metrics_explorer_history_loaded");
     };
 
     // The grid is paused under Visualize, so it re-queries the new window only once back on screen.
@@ -2252,68 +2216,12 @@ export default defineComponent({
 
     watch(refreshInterval, (value) => grid.setRefreshInterval(value));
 
-    /* -------------------------------------------------------- telemetry */
-
-    const track = (event: string, properties: Record<string, any> = {}) => {
-      try {
-        analytics.track(event, {
-          org_id: store.state.selectedOrganization?.identifier,
-          ...properties,
-        });
-      } catch {
-        // Telemetry must never break the page.
-      }
-    };
-
-    const trackFilter = (kind: string) =>
-      track("metrics_explorer_filter_applied", {
-        kind,
-        active_filter_count: grid.activeFilterCount.value,
-      });
-
-    // The search terms themselves are never sent — only how many there were.
-    watch(
-      () => grid.searchTerm.value,
-      (term) => {
-        if (!term) return;
-        track("metrics_explorer_searched", {
-          term_count: String(term)
-            .split(/[^a-z0-9_:]+/i)
-            .filter(Boolean).length,
-        });
-      },
-    );
-
     /* ------------------------------------------------------- lifecycle */
 
-    let mountedAt = 0;
-
-    // A DEEP watch over every preview is not free — once the first render is
-    // reported there is nothing left for it to say, so it unregisters itself
-    // rather than re-walking the map on every preview for the life of the page.
-    const stopFirstRenderWatch = watch(
-      () => grid.previews.value,
-      (map) => {
-        if (Object.values(map).some((p: any) => p.status === "done")) {
-          stopFirstRenderWatch();
-          track("metrics_explorer_first_render", {
-            ms: Math.round(performance.now() - mountedAt),
-          });
-        }
-      },
-      { deep: true },
-    );
-
     onMounted(async () => {
-      mountedAt = performance.now();
       syncTimeRange();
       // Cache-first: the route remounts on every visit, so a force would discard the shared list.
       await grid.loadStreams();
-
-      track("metrics_explorer_opened", {
-        metric_count: grid.cards.value.length,
-        entry: "direct",
-      });
 
       observeScrollWidth();
     });
@@ -2508,7 +2416,6 @@ export default defineComponent({
       activeViewState,
       onApplyView,
       onClearView,
-      onViewSaved,
       onVisualizeRun,
       onVisualizeRunWithoutCache,
       onHistoryLoad,

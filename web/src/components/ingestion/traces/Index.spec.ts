@@ -18,11 +18,6 @@ import { mount, VueWrapper, flushPromises } from "@vue/test-utils";
 import { createStore } from "vuex";
 import i18n from "@/locales";
 
-// Mock product analytics to prevent real tracking calls
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: vi.fn() },
-}));
-
 // Mock aws-exports config
 vi.mock("../../../aws-exports", () => ({
   default: {},

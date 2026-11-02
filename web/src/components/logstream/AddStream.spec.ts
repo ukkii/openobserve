@@ -53,16 +53,6 @@ vi.mock("@/services/stream", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({
-    track: vi.fn(),
-  }),
-}));
-
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: vi.fn() },
-}));
-
 vi.mock("@/lib/feedback/Toast/useToast", () => ({
   toast: mockToast,
 }));

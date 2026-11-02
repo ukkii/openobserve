@@ -53,13 +53,6 @@ vi.mock("@/services/iam", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-import analytics from "@/services/product_analytics";
-
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({ track: vi.fn() }),
-}));
-
 const { mockToast } = vi.hoisted(() => ({
   mockToast: vi.fn().mockReturnValue(vi.fn()),
 }));
@@ -286,8 +279,6 @@ describe("AddServiceAccount", () => {
       vi.mocked(service_accounts.create).mockResolvedValue({ data: {} } as any);
       await getNameInput(wrapper).setValue("new-bot");
       await submitForm(wrapper);
-
-      expect(analytics.track).toHaveBeenCalledWith("service_account_created");
     });
 
     it("does not track service_account_created when creation fails", async () => {
@@ -298,7 +289,6 @@ describe("AddServiceAccount", () => {
       await submitForm(wrapper);
 
       expect(service_accounts.create).toHaveBeenCalled();
-      expect(analytics.track).not.toHaveBeenCalled();
     });
 
     it("emits updated (with an access promise resolving to empty buckets) + update:open(false) after a successful create", async () => {

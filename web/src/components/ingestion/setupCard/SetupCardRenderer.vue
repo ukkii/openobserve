@@ -31,8 +31,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import { computed, inject, ref, watch, nextTick } from "vue";
 import { useStore } from "vuex";
 import { useTheme } from "@/composables/useTheme";
-import { useRouter } from "vue-router";
-import analytics from "@/services/product_analytics";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
 import OButton from "@/lib/core/Button/OButton.vue";
 import OTag from "@/lib/core/Badge/OTag.vue";
@@ -95,13 +93,10 @@ const emit = defineEmits<{
   (e: "detected", count: number): void;
 }>();
 
-const router = useRouter();
 const store = useStore();
 const { t } = useI18nTyped();
 const { isDark } = useTheme();
 const openTokenPicker = inject(OPEN_TOKEN_PICKER, null);
-
-const streamKind = computed(() => props.content.detect?.streamType);
 
 // Logo precedence per theme: manifest override → content (frontmatter) → none.
 // In dark mode the dark variant is preferred, falling back to the light logo.
@@ -286,10 +281,6 @@ const tokenName = computed<string | undefined>(() => {
 // Fires once per false→true transition — a remount starts idle and stays silent.
 watch(detected, (connected, was) => {
   if (connected && !was) {
-    analytics.track("data_source_connected", {
-      provider: props.content.provider.id,
-      stream_type: streamKind.value ?? "logs",
-    });
     emit("detected", detect.count.value);
   }
 });
@@ -401,11 +392,7 @@ const scrollToStep = (i: number) => {
       block: "center",
     });
 };
-const onStepCopy = (step: RichCardStep, index: number, payload?: CodeBlockCopyPayload) => {
-  analytics.track("snippet_copied", {
-    route: router.currentRoute.value.name,
-    partial: payload?.partial ?? false,
-  });
+const onStepCopy = (step: RichCardStep, index: number, _payload?: CodeBlockCopyPayload) => {
   statusBar.value?.start("copy");
   if (step.completeOn === "copy") copied.value = { ...copied.value, [step.id]: true };
   scrollToStep(index + 1);

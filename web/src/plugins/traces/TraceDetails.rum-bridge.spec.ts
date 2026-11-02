@@ -21,7 +21,6 @@ import store from "@/test/unit/helpers/store";
 import router from "@/test/unit/helpers/router";
 import { http, HttpResponse } from "msw";
 import tracesMockData from "@/test/unit/mockData/traces";
-import analytics from "@/services/product_analytics";
 
 const node = document.createElement("div");
 node.setAttribute("id", "app");
@@ -33,8 +32,6 @@ vi.mock("@/composables/useNotifications", () => ({
     showErrorNotification: vi.fn(),
   }),
 }));
-
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 
 // Mocked because the test store's streams module is a stub that never caches a fetched list.
 vi.mock("@/composables/useStreams", () => ({
@@ -200,7 +197,6 @@ describe("TraceDetails - RUM bridge gate and windows", () => {
   }
 
   beforeEach(() => {
-    vi.mocked(analytics.track).mockClear();
     localStorage.removeItem("o2_trace_active_tab");
     localStorage.removeItem("o2_trace_tab_order");
 
@@ -324,8 +320,6 @@ describe("TraceDetails - RUM bridge gate and windows", () => {
     await flushPromises();
     await vi.waitFor(() => expect(wrapper.vm.spanList.length).toBe(3), { timeout: 5000 });
     await flushPromises();
-
-    expect(analytics.track).toHaveBeenCalledWith("trace_details_loaded", { mode: "standalone" });
   });
 
   it("does not track trace_details_loaded when the trace details request fails", async () => {
@@ -349,7 +343,6 @@ describe("TraceDetails - RUM bridge gate and windows", () => {
     await flushPromises();
 
     expect(wrapper.vm.spanList.length).toBe(0);
-    expect(analytics.track).not.toHaveBeenCalledWith("trace_details_loaded", expect.anything());
   });
 
   // Regression: a page-long RUM view root must not set the waterfall's axis.

@@ -63,7 +63,6 @@ vi.mock("@/utils/commons.ts", async (importOriginal) => ({
 }));
 
 vi.mock("@/services/reports", () => ({ default: { list: vi.fn() } }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@/composables/useNotifications", () => ({
   default: () => ({
     showPositiveNotification: vi.fn(),

@@ -15,7 +15,6 @@
 
 import type { AxiosRequestConfig } from "axios";
 import http from "./http";
-import analytics from "./product_analytics";
 
 const stream = {
   nameList: (
@@ -76,7 +75,6 @@ const stream = {
     return http()
       .put(url, data)
       .then((res) => {
-        analytics.track("stream_settings_updated", { stream_type: type });
         return res;
       });
   },
@@ -89,7 +87,6 @@ const stream = {
     return http()
       .post(url, data)
       .then((res) => {
-        analytics.track("stream_created", { stream_type: type });
         return res;
       });
   },
@@ -173,7 +170,6 @@ const stream = {
         fields,
       })
       .then((res) => {
-        analytics.track("stream_fields_deleted", { stream_type, count: fields.length });
         return res;
       });
   },

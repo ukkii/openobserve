@@ -42,7 +42,6 @@ vi.mock("@/services/alert_templates", async (importOriginal) => {
     },
   });
 });
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 vi.mock("@/utils/templates/validation", () => ({
   validateTemplateBody: vi.fn().mockReturnValue({ valid: true }),
   getTemplateValidationErrorMessage: vi.fn().mockReturnValue(""),

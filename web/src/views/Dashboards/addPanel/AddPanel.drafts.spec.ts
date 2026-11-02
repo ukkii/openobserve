@@ -24,7 +24,6 @@ import {
   signOutLeaveWillAsk,
 } from "@/utils/drafts/draftSession";
 import { addPanel, getDashboard, getPanel, updateDashboard, updatePanel } from "@/utils/commons";
-import analytics from "@/services/product_analytics";
 import { useShortcuts } from "@/lib/vue-shortcut-manager";
 import { contextRegistry } from "@/composables/contextProviders";
 import { click, clickIn } from "@/test/unit/helpers/draftDom";
@@ -120,8 +119,6 @@ const toasts = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn(),
 }));
-
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@/composables/useNotifications", () => ({
   default: () => ({
     showErrorNotification: toasts.error,
@@ -828,11 +825,6 @@ describe("AddPanel drafts and Save and keep editing", () => {
       expect(getDashboard).toHaveBeenCalled();
       expect(toasts.positive).toHaveBeenCalledTimes(1);
       expect(readPanelDraft(editScope)).toBeNull();
-      expect(analytics.track).toHaveBeenCalledWith("dashboard_panel_saved", {
-        chart_type: "line",
-        is_new: false,
-        stay: true,
-      });
       const { next, done } = leave();
       await done;
       expect(next).toHaveBeenCalledWith();
@@ -969,10 +961,6 @@ describe("AddPanel drafts and Save and keep editing", () => {
           expect.objectContaining({ path: "/dashboards/view" }),
         ),
       );
-      expect(analytics.track).toHaveBeenCalledWith("dashboard_panel_saved", {
-        chart_type: "line",
-        is_new: false,
-      });
     });
 
     it("renders the split Save menu with Save and keep editing", async () => {

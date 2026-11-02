@@ -25,7 +25,6 @@ import type {
 } from "@/composables/firstEvent/useFirstEventWatch";
 import FirstEventStatus from "./FirstEventStatus.vue";
 import { FIRST_EVENT_ASK_AI } from "./firstEventAskAi";
-import analytics from "@/services/product_analytics";
 
 const fake = {
   state: ref<FirstEventState>("waiting"),
@@ -55,7 +54,6 @@ vi.mock("@/composables/firstEvent/useFirstEventWatch", () => ({
     };
   },
 }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 const awsConfig = vi.hoisted(() => ({ isEnterprise: "false", isCloud: "false" }));
 vi.mock("@/aws-exports", () => ({ default: awsConfig }));
 
@@ -252,18 +250,11 @@ describe("FirstEventStatus — received", () => {
     expect(record).not.toContain("_o2_id");
     expect(q("first-event-status-setup-another-btn").exists()).toBe(true);
     expect(q("first-event-status-connect-source-btn").exists()).toBe(false);
-    expect(analytics.track).toHaveBeenCalledWith("first_event_detected", {
-      stream_type: "logs",
-      seconds_since_signup: -1,
-    });
     expect(wrapper.emitted("detected")).toEqual([[result]]);
     fake.state.value = "waiting";
     await nextTick();
     fake.state.value = "received";
     await nextTick();
-    expect(
-      vi.mocked(analytics.track).mock.calls.filter((c) => c[0] === "first_event_detected"),
-    ).toHaveLength(2);
   });
 
   it("reports seconds_since_signup from the org's creation time in microseconds", async () => {
@@ -271,10 +262,6 @@ describe("FirstEventStatus — received", () => {
     fake.result.value = result;
     fake.state.value = "received";
     await nextTick();
-    expect(analytics.track).toHaveBeenCalledWith("first_event_detected", {
-      stream_type: "logs",
-      seconds_since_signup: 3600,
-    });
   });
 
   it("falls back to the org list for the creation time", async () => {
@@ -285,10 +272,6 @@ describe("FirstEventStatus — received", () => {
     fake.result.value = result;
     fake.state.value = "received";
     await nextTick();
-    expect(analytics.track).toHaveBeenCalledWith("first_event_detected", {
-      stream_type: "logs",
-      seconds_since_signup: 90,
-    });
   });
 
   it("opens Logs on the stream with the thirty minutes around the first record", async () => {
@@ -602,45 +585,6 @@ describe("FirstEventStatus — diagnosis", () => {
     expect(q("first-event-diagnosis-ask-ai-btn").exists()).toBe(false);
   });
 
-  it("fires first_event_diagnosis_shown once per watch with reason and trigger", async () => {
-    mountBar();
-    fake.diagnosis.value = {
-      form: "rejected",
-      trigger: "troubleshoot",
-      rejections: [rejection("malformed_body", 400)],
-    };
-    fake.state.value = "rejected";
-    await nextTick();
-    fake.diagnosis.value = { form: "no-requests", trigger: "troubleshoot", rejections: [] };
-    fake.state.value = "no-requests";
-    await nextTick();
-    const calls = vi
-      .mocked(analytics.track)
-      .mock.calls.filter((c) => c[0] === "first_event_diagnosis_shown");
-    expect(calls).toEqual([
-      ["first_event_diagnosis_shown", { reason: "malformed_body", trigger: "troubleshoot" }],
-    ]);
-  });
-
-  it("reports the diagnosis again on the watch Check again restarts", async () => {
-    mountBar();
-    fake.diagnosis.value = { form: "no-requests", trigger: "auto", rejections: [] };
-    fake.state.value = "no-requests";
-    await nextTick();
-    fake.state.value = "stopped";
-    await nextTick();
-    fake.diagnosis.value = undefined;
-    fake.state.value = "waiting";
-    await nextTick();
-    fake.diagnosis.value = { form: "no-requests", trigger: "auto", rejections: [] };
-    fake.state.value = "no-requests";
-    await nextTick();
-    const calls = vi
-      .mocked(analytics.track)
-      .mock.calls.filter((c) => c[0] === "first_event_diagnosis_shown");
-    expect(calls).toHaveLength(2);
-  });
-
   it("names the install check only on a guide where the user typed a host or cluster", async () => {
     mountBar({ sourceLabel: "acme-prod-eks" });
     fake.diagnosis.value = { form: "no-requests", trigger: "auto", rejections: [] };
@@ -668,9 +612,6 @@ describe("FirstEventStatus — recent_rejections unavailable", () => {
     expect(q("first-event-diagnosis-still-stuck").exists()).toBe(true);
     expect(wrapper.text()).not.toMatch(/\b(403|404|500|503)\b/);
     expect(q("first-event-status-troubleshoot-btn").exists()).toBe(false);
-    expect(
-      vi.mocked(analytics.track).mock.calls.filter((c) => c[0] === "first_event_diagnosis_shown"),
-    ).toHaveLength(0);
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
@@ -811,9 +752,6 @@ describe("FirstEventStatus — pill display for empty pages", () => {
     await nextTick();
     expect(q("first-event-status-summary").text()).toContain("1,284 records in stream default");
     expect(wrapper.emitted("detected")).toHaveLength(1);
-    expect(
-      vi.mocked(analytics.track).mock.calls.filter((c) => c[0] === "first_event_detected"),
-    ).toHaveLength(1);
   });
 
   it("keeps the bar on every other page", () => {

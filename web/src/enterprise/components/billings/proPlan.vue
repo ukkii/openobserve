@@ -203,7 +203,6 @@ import OTag from "@/lib/core/Badge/OTag.vue";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
 import OSeparator from "@/lib/core/Separator/OSeparator.vue";
 import OCard from "@/lib/core/Card/OCard.vue";
-import analytics from "@/services/product_analytics";
 
 export default defineComponent({
   name: "proPlan",
@@ -229,7 +228,6 @@ export default defineComponent({
       setTimeout(function () {
         btnCancelSubscription.value = t("billing.manageSubscription");
       }, 1000);
-      analytics.track("billing_manage_subscription_clicked", { plan: planName });
       emit("update:cancelSubscription");
     };
 
@@ -238,7 +236,6 @@ export default defineComponent({
       setTimeout(function () {
         btnSubscribe.value = t("billing.subscribe");
       }, 1000);
-      analytics.track("billing_subscribe_clicked", { plan: planName });
       emit("update:proSubscription");
     };
 

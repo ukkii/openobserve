@@ -4,13 +4,6 @@ import Server from "@/components/ingestion/Server.vue";
 import i18n from "@/locales";
 import store from "@/test/unit/helpers/store";
 
-// Mock services
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
 vi.mock("@/utils/zincutils", () => ({
   getImageURL: vi.fn((imagePath: string) => `img:${imagePath}`),
   verifyOrganizationStatus: vi.fn(),

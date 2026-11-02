@@ -1,14 +1,7 @@
-import { mount, flushPromises } from "@vue/test-utils";
+import { mount } from "@vue/test-utils";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import i18n from "@/locales";
 import store from "@/test/unit/helpers/store";
-
-// Mock services
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
 
 vi.mock("@/utils/zincutils", () => ({
   getImageURL: vi.fn(() => "mock-image-url"),
@@ -361,39 +354,6 @@ describe("IngestLogs Component", () => {
         errorMessage: "Error while copy content.",
         timeout: 5000,
       });
-    });
-
-    it("should track product analytics on successful copy", async () => {
-      const { copyToClipboard } = await import("@/utils/clipboard");
-      vi.mocked(copyToClipboard).mockResolvedValue(true);
-      const analytics = await import("@/services/product_analytics");
-
-      mockRouter.currentRoute.value.name = "curl";
-      await wrapper.vm.copyToClipboardFn({ innerText: "track this" });
-
-      // Wait for the .then() callback to fire
-      await flushPromises();
-
-      expect(analytics.default.track).toHaveBeenCalledWith("Button Click", {
-        button: "Copy to Clipboard",
-        ingestion: "curl",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Ingestion",
-      });
-    });
-
-    it("should not track product analytics when copy fails (resolves false)", async () => {
-      const { copyToClipboard } = await import("@/utils/clipboard");
-      vi.mocked(copyToClipboard).mockResolvedValue(false);
-      const analytics = await import("@/services/product_analytics");
-
-      mockRouter.currentRoute.value.name = "fluentbit";
-      await wrapper.vm.copyToClipboardFn({ innerText: "fail track" });
-
-      // Wait for the .then() callback to fire
-      await flushPromises();
-
-      expect(analytics.default.track).not.toHaveBeenCalled();
     });
 
     it("should handle empty innerText gracefully", async () => {

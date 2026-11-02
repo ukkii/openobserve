@@ -42,10 +42,6 @@ vi.mock("../../../utils/azureIntegrations", () => ({
   generateAzureDashboardURL: vi.fn(() => "https://mock-dashboard-url"),
 }));
 
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: vi.fn() },
-}));
-
 const mockStore = createStore({
   state: {
     selectedOrganization: { identifier: "test-org", name: "Test Organization" },

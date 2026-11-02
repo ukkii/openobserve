@@ -15,7 +15,6 @@
 
 import http, { attemptTokenRefresh } from "./http";
 import store from "@/stores";
-import analytics from "./product_analytics";
 import type { AckAlertResponse, UnackAlertResponse } from "@/ts/interfaces/alert";
 import type { TranslateFn } from "@/types/i18n";
 import serviceStreamsApi, {
@@ -856,7 +855,6 @@ const incidents = {
         status,
       })
       .then((res) => {
-        analytics.track("incident_status_updated", { status });
         return res;
       });
   },
@@ -875,10 +873,6 @@ const incidents = {
         updates,
       )
       .then((res) => {
-        analytics.track("incident_updated", {
-          severity_changed: updates.severity !== undefined,
-          title_changed: updates.title !== undefined,
-        });
         return res;
       });
   },
@@ -905,9 +899,6 @@ const incidents = {
         { params: query, signal: config.signal },
       )
       .then((res) => {
-        analytics.track("incident_rca_requested", {
-          build_on_previous: params.build_on_previous === true,
-        });
         return res;
       });
   },
@@ -1098,7 +1089,6 @@ const incidents = {
         comment,
       })
       .then((res) => {
-        analytics.track("incident_comment_added");
         return res;
       });
   },

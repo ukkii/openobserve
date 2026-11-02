@@ -83,16 +83,6 @@ const OnCallPolicies = () => import("@/views/OnCall/OnCallPolicies.vue");
 
 const IdentityAccessManagement = () => import("@/views/IdentityAccessManagement.vue");
 
-const AppGroups = () => import("@/components/iam/groups/AppGroups.vue");
-
-const AppRoles = () => import("@/components/iam/roles/AppRoles.vue");
-
-const EditRole = () => import("@/components/iam/roles/EditRole.vue");
-
-const EditGroup = () => import("@/components/iam/groups/EditGroup.vue");
-
-const Quota = () => import("@/components/iam/quota/Quota.vue");
-
 const Organizations = () => import("@/components/iam/organizations/AppOrganizations.vue");
 
 const ServiceAccountsList = () =>
@@ -456,53 +446,6 @@ const useEnterpriseRoutes = () => {
       },
     ],
   });
-  routes[0].children.push(
-    ...[
-      {
-        path: "groups",
-        name: "groups",
-        meta: {
-          titleKey: "routeTitles.groups",
-        },
-        component: AppGroups,
-        beforeEnter: withFeatureGate("rbac", routeGuard),
-      },
-      {
-        path: "groups/edit/:group_name",
-        name: "editGroup",
-        meta: {
-          titleKey: "routeTitles.editGroup",
-        },
-        component: EditGroup,
-        beforeEnter: withFeatureGate("rbac", routeGuard),
-      },
-      {
-        path: "roles",
-        name: "roles",
-        meta: {
-          titleKey: "iam.roles",
-        },
-        component: AppRoles,
-        beforeEnter: withFeatureGate("rbac", routeGuard),
-      },
-      {
-        path: "roles/edit/:role_name",
-        name: "editRole",
-        meta: {
-          titleKey: "routeTitles.editRole",
-        },
-        component: EditRole,
-        beforeEnter: withFeatureGate("rbac", routeGuard),
-      },
-      {
-        path: "quota",
-        name: "quota",
-        component: Quota,
-        beforeEnter: withFeatureGate("rbac", routeGuard),
-      },
-    ],
-  );
-
   if (config.isCloud == "true") {
     routes[0].children.push({
       path: "invitations",

@@ -304,12 +304,8 @@ pub async fn update_user(
 
     #[cfg(not(feature = "enterprise"))]
     if is_email_root {
-        user.role = Some(common::meta::user::UserRoleRequest {
-            role: UserRole::Root.to_string(),
-            custom: None,
-        });
+        user.role = None;
     }
-    user.role = user.role.clone();
 
     // Only root user can update root user
     if is_email_root && !update_mode.is_self_update() && !update_mode.is_cli_update() {
@@ -369,6 +365,16 @@ pub async fn update_user(
         return Ok(MetaHttpResponse::not_found("User not found"));
     };
 
+    #[cfg(not(feature = "enterprise"))]
+    let role_changes = community_role
+        .as_ref()
+        .is_some_and(|role| role.base_role != local_user.role);
+    #[cfg(feature = "enterprise")]
+    let role_changes = user
+        .role
+        .as_ref()
+        .is_some_and(|role| UserOrgRole::from(role).base_role != local_user.role);
+
     #[cfg(not(feature = "cloud"))]
     if local_user.is_external {
         return Ok(MetaHttpResponse::bad_request(
@@ -423,7 +429,7 @@ pub async fn update_user(
     }
     if !update_mode.is_self_update()
         && !update_mode.is_cli_update()
-        && user.role.is_some()
+        && role_changes
         && !allow_password_update
     {
         return Ok(MetaHttpResponse::unauthorized("Not Allowed"));
@@ -515,12 +521,9 @@ pub async fn update_user(
         && (!local_user.is_external || is_cloud)
         && (!update_mode.is_self_update()
             || (local_user.role.eq(&UserRole::Admin)
-                            // Editor can update other's roles, but viewer can update only self
-                            || local_user.role.eq(&UserRole::Editor)
-                            || local_user.role.eq(&UserRole::Viewer)
-                            || local_user.role.eq(&UserRole::Root)))
-    // if the User Role is Root, we do not change the Role
-    // Admins Role can still be mutable.
+                || local_user.role.eq(&UserRole::Editor)
+                || local_user.role.eq(&UserRole::Viewer)
+                || local_user.role.eq(&UserRole::Root)))
     {
         #[cfg(feature = "enterprise")]
         let Some(role) = user.role.as_ref() else {
@@ -2487,6 +2490,81 @@ mod tests {
                 .role,
             UserRole::Viewer
         );
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[tokio::test]
+    async fn editor_can_update_details_when_resending_the_unchanged_role() {
+        let _guard = set_up().await;
+        let editor = "editor-echo@example.com";
+        let target = "target-echo@example.com";
+        create_member(editor, &[("dummy", UserRole::Editor)]).await;
+        create_member(target, &[("dummy", UserRole::Viewer)]).await;
+
+        let response = update_user(
+            "dummy",
+            target,
+            UserUpdateMode::OtherUpdate,
+            editor,
+            UpdateUser {
+                first_name: Some("Updated".to_string()),
+                role: Some(common::meta::user::UserRoleRequest {
+                    role: UserRole::Viewer.to_string(),
+                    custom: None,
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.status(), http::StatusCode::OK);
+        let updated = db::user::get(Some("dummy"), target).await.unwrap().unwrap();
+        assert_eq!(updated.first_name, "Updated");
+        assert_eq!(updated.role, UserRole::Viewer);
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[tokio::test]
+    async fn root_self_and_cli_updates_ignore_the_wire_role() {
+        let _guard = set_up().await;
+        let root = "root@zo.dev";
+        ORG_USERS.insert(
+            format!("{DEFAULT_ORG}/{root}"),
+            OrgUserRecord {
+                role: UserRole::Root,
+                token: "root_token".to_string(),
+                rum_token: Some("root_rum_token".to_string()),
+                org_id: DEFAULT_ORG.to_string(),
+                email: root.to_string(),
+                created_at: 0,
+                allow_static_token: true,
+            },
+        );
+
+        for (mode, name) in [
+            (UserUpdateMode::SelfUpdate, "Self Updated"),
+            (UserUpdateMode::CliUpdate, "CLI Updated"),
+        ] {
+            let response = update_user(
+                DEFAULT_ORG,
+                root,
+                mode,
+                root,
+                UpdateUser {
+                    first_name: Some(name.to_string()),
+                    role: Some(common::meta::user::UserRoleRequest {
+                        role: UserRole::Root.to_string(),
+                        custom: None,
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(response.status(), http::StatusCode::OK, "{name}");
+            assert_eq!(ROOT_USER.get("root").unwrap().role, UserRole::Root);
+        }
     }
 
     /// A password change must land the new hash and the columns describing it together: the flag

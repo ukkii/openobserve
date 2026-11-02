@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 export interface SlackOAuthConnection {
   webhookUrl: string;
@@ -87,7 +86,6 @@ const destination = {
     return http()
       .post(url, data)
       .then((res) => {
-        analytics.track("alert_destination_created", { module: module || "alert" });
         return res;
       });
   },
@@ -99,7 +97,6 @@ const destination = {
     return http()
       .put(url, data)
       .then((res) => {
-        analytics.track("alert_destination_updated", { module: module || "alert" });
         return res;
       });
   },
@@ -124,7 +121,6 @@ const destination = {
     return http()
       .delete(`/api/${org_identifier}/alerts/destinations/${encodeURIComponent(destination_name)}`)
       .then((res) => {
-        analytics.track("alert_destination_deleted", { count: 1 });
         return res;
       });
   },
@@ -132,8 +128,6 @@ const destination = {
     return http()
       .delete(`/api/${org_identifier}/alerts/destinations/bulk`, { data })
       .then((res) => {
-        const count = res.data?.successful?.length ?? 0;
-        if (count > 0) analytics.track("alert_destination_deleted", { count });
         return res;
       });
   },
@@ -141,7 +135,6 @@ const destination = {
     return http()
       .post(`/api/${org_identifier}/alerts/destinations/test`, data)
       .then((res) => {
-        analytics.track("alert_destination_test_completed", { success: !!res.data?.success });
         return res;
       });
   },
@@ -164,7 +157,6 @@ const destination = {
         { code, state },
       )
       .then((res) => {
-        analytics.track("alert_destination_slack_connected");
         return res;
       }),
   // The browser cannot call Jira directly, so lookups and the test issue go through the server.
@@ -185,7 +177,6 @@ const destination = {
         data,
       )
       .then((res) => {
-        analytics.track("alert_template_test_sent");
         return res;
       });
   },

@@ -81,7 +81,6 @@ vi.mock("@/composables/useStreams", () => ({
     getStream: vi.fn(async () => ({ schema: [] })),
   }),
 }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@/components/dashboards/settings/AnnotationSettings.vue", () => ({
   default: { name: "AnnotationSettings", template: "<div />" },
 }));

@@ -14,10 +14,6 @@ vi.mock("@/composables/useStreams", () => ({
   }),
 }));
 
-vi.mock("@/services/product_analytics", () => ({
-  default: {},
-}));
-
 vi.mock("@/aws-exports", () => ({
   default: {
     isCloud: "false",

@@ -45,7 +45,6 @@ import type { useChatScroll } from "@/composables/useChatScroll";
 import type { useTypewriter } from "@/composables/useTypewriter";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { aiCreditsRemedy } from "@/utils/aiCredits";
-import analytics from "@/services/product_analytics";
 import type {
   ChatHistoryEntry,
   ChatMessage,
@@ -109,9 +108,6 @@ const pinnedChatContext = ref<{ context: Record<string, unknown>; chatId: number
   null,
 );
 
-// Keyed by turn controller: a Stop racing the stream's end, or a halt before the restore retry, must not count a turn twice.
-const answerOutcomeTracked = new WeakSet<AbortController>();
-
 // Detached streams outlive their component; call only when the turn loses authorization (org switch, logout), never on navigation.
 export const abortBackgroundStreams = () => {
   for (const controller of backgroundStreams) controller.abort();
@@ -120,12 +116,6 @@ export const abortBackgroundStreams = () => {
   for (const key of Object.keys(sessionStreamingState)) {
     delete sessionStreamingState[key];
   }
-};
-
-const trackAnswerOutcome = (turn: AbortController | null, event: string, properties?: object) => {
-  if (!turn || answerOutcomeTracked.has(turn)) return;
-  answerOutcomeTracked.add(turn);
-  analytics.track(event, properties);
 };
 
 /** How a turn ended for the caller: `turnLimit` means the server refused it before it started; `creditsExhausted` (402) hands the draft back to the input. */
@@ -287,7 +277,6 @@ export function useChatStream(options: UseChatStreamOptions) {
 
   const cancelCurrentRequest = async () => {
     if (currentAbortController.value) {
-      trackAnswerOutcome(currentAbortController.value, "ai_assistant_answer_aborted");
       // A persisted turn outlives this request, so aborting alone would leave it running; fire-and-forget.
       if (currentSessionId.value && persistenceOn()) {
         cancelAiChat(store.state.selectedOrganization.identifier, currentSessionId.value).catch(
@@ -504,7 +493,6 @@ export function useChatStream(options: UseChatStreamOptions) {
       const effects = reduce(state, data, buildCtx(phase));
       commitState(state);
       await runEffects(effects);
-      if (state.halted) trackAnswerOutcome(turn, "ai_assistant_answer_failed", { stage: "stream" });
       return state.halted;
     };
 
@@ -541,12 +529,6 @@ export function useChatStream(options: UseChatStreamOptions) {
         }
       }
 
-      // An owner-unavailable stream is replayed by runTurn, so only its replay counts.
-      if (!streamOwnerUnavailable.value) {
-        if (sawCompleteFrame) trackAnswerOutcome(turn, "ai_assistant_answer_completed");
-        else trackAnswerOutcome(turn, "ai_assistant_answer_failed", { stage: "stream" });
-      }
-
       if (messageComplete) {
         if (isActive()) {
           displayedStreamingContent.value = textSegment;
@@ -573,7 +555,6 @@ export function useChatStream(options: UseChatStreamOptions) {
         return;
       } else {
         console.error("Error reading stream:", error);
-        trackAnswerOutcome(turn, "ai_assistant_answer_failed", { stage: "stream" });
       }
     }
   };
@@ -745,7 +726,6 @@ export function useChatStream(options: UseChatStreamOptions) {
         );
         return false;
       }
-      analytics.track("ai_assistant_tool_call_answered", { approved });
       return true;
     } catch (error) {
       console.error("Error sending confirmation:", error);
@@ -896,7 +876,6 @@ export function useChatStream(options: UseChatStreamOptions) {
     messagesToSend: ImageAttachment[],
   ): Promise<TurnOutcome> => {
     let outcome: TurnOutcome = "done";
-    const isNewSession = !currentSessionId.value;
     // Mint the session id before the try so every exit path's cleanup clears the SAME id, or a re-attached instance spins forever.
     if (!currentSessionId.value) {
       currentSessionId.value = getUUIDv7();
@@ -952,7 +931,6 @@ export function useChatStream(options: UseChatStreamOptions) {
         response = await fetchTurn();
       } catch (error) {
         console.error("Error fetching AI chat:", error);
-        trackAnswerOutcome(turnController, "ai_assistant_answer_failed", { stage: "request" });
         return outcome;
       }
 
@@ -972,7 +950,6 @@ export function useChatStream(options: UseChatStreamOptions) {
         // Nothing was stored, so the composer gets the prompt back instead of an error turn.
         if (isTurnLimitResponse(response.status, errorBody)) {
           outcome = "turnLimit";
-          trackAnswerOutcome(turnController, "ai_assistant_answer_failed", { stage: "request" });
           return outcome;
         }
 
@@ -1057,10 +1034,6 @@ export function useChatStream(options: UseChatStreamOptions) {
       if (!response.body) {
         throw new Error("No response body");
       }
-      analytics.track("ai_assistant_message_sent", {
-        has_images: hasImages,
-        new_session: isNewSession,
-      });
 
       const reader = response.body.getReader();
 
@@ -1073,10 +1046,6 @@ export function useChatStream(options: UseChatStreamOptions) {
       if (streamOwnerUnavailable.value && !hasReseeded && stillOnScreen) {
         await restoreAfterOwnerLoss(turnController, streamSessionId, hasImages, messagesToSend);
         hasReseeded = true;
-      }
-      // Still set here means no restore ran (already used, or the chat left the screen), so the turn ends unanswered.
-      if (streamOwnerUnavailable.value) {
-        trackAnswerOutcome(turnController, "ai_assistant_answer_failed", { stage: "stream" });
       }
       streamOwnerUnavailable.value = false;
 
@@ -1098,7 +1067,6 @@ export function useChatStream(options: UseChatStreamOptions) {
       ) {
         chatMessages.value.pop();
       }
-      trackAnswerOutcome(turnController, "ai_assistant_answer_failed", { stage: "request" });
       const errorMessage = chatErrorMessage(error, t);
       chatMessages.value.push({
         role: "assistant",
@@ -1168,7 +1136,6 @@ export function useChatStream(options: UseChatStreamOptions) {
       await processStream(retry.body.getReader(), turnController, currentTurnId.value);
     } else if (!(retry && retry.cancelled)) {
       // No further attempt follows, so explain instead of ending silently; a cancel stays silent.
-      trackAnswerOutcome(turnController, "ai_assistant_answer_failed", { stage: "request" });
       appendErrorBlock(
         "This conversation was interrupted and could not be restored. Please try sending your message again.",
       );

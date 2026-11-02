@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 const users = {
   list: (page_num: number, page_size: number, sort_by: string, desc: boolean, name: string) => {
@@ -26,7 +25,6 @@ const users = {
     return http()
       .post(`/api/${org_identifier}/users`, data)
       .then((res) => {
-        analytics.track("user_added", { is_new: true });
         return res;
       });
   },
@@ -41,7 +39,6 @@ const users = {
     return http()
       .post(`/api/${org_identifier}/users/${user_email}`, data)
       .then((res) => {
-        analytics.track("user_added", { is_new: false });
         return res;
       });
   },
@@ -49,7 +46,6 @@ const users = {
     return http()
       .delete(`/api/${org_identifier}/users/${user_email}`)
       .then((res) => {
-        analytics.track("user_removed", { count: 1 });
         return res;
       });
   },
@@ -57,8 +53,6 @@ const users = {
     return http()
       .delete(`/api/${org_identifier}/users/bulk`, { data })
       .then((res) => {
-        const count = res.data?.successful?.length ?? 0;
-        if (count > 0) analytics.track("user_removed", { count });
         return res;
       });
   },

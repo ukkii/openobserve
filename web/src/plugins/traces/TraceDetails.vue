@@ -1036,7 +1036,6 @@ import useStreams from "@/composables/useStreams";
 import useRumSpanBuilder, { hasDanglingParent } from "@/composables/rum/useRumSpanBuilder";
 import { useRouter } from "vue-router";
 import searchService from "@/services/search";
-import analytics from "@/services/product_analytics";
 import config from "@/aws-exports";
 import { useEnterpriseUpgradeDialog } from "@/composables/useEnterpriseUpgradeDialog";
 import { useLockedAffordance } from "@/composables/useLockedAffordance";
@@ -2521,7 +2520,6 @@ export default defineComponent({
         updateSelectedTrace(data.trace_id, spanList.value);
         updateServiceColors();
         buildTracesTree();
-        analytics.track("trace_details_loaded", { mode: props.mode });
       } catch (error) {
         if (generation !== loadGeneration) return;
         // A 401 is the expired session the global handler is already logging the user out of.

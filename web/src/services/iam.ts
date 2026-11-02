@@ -1,5 +1,4 @@
 import http from "./http";
-import analytics from "./product_analytics";
 
 // ----------- Groups -------------
 export const getGroups = (org_identifier: string) => {
@@ -31,7 +30,6 @@ export const createGroup = (group_name: string, org_identifier: string) => {
       roles: [],
     })
     .then((res) => {
-      analytics.track("user_group_created");
       return res;
     });
 };

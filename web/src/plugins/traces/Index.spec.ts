@@ -26,7 +26,6 @@ import router from "@/test/unit/helpers/router";
 import * as useDurationPercentilesModule from "@/composables/useDurationPercentiles";
 import { buildViewTracesFilter } from "@/plugins/traces/viewTracesHandoff";
 import { tracesSearchRunSignature } from "@/plugins/traces/tracesSearchBar.utils";
-import analytics from "@/services/product_analytics";
 import queryHistory from "@/services/query_history";
 import type { QueryHistoryEntry } from "@/services/query_history";
 import { openRecentOnItsPage, takeRecentLanding } from "@/utils/queryHistory/routes";
@@ -374,12 +373,6 @@ vi.mock("@/services/jstransform", async (importOriginal) => {
     },
   });
 });
-
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
 
 // Mock SQL parser
 vi.mock("@/composables/useParser", () => ({
@@ -1252,49 +1245,6 @@ describe("Index.vue (Main Traces Page)", () => {
       expect(mockClearOriginalTimeRange).toHaveBeenCalled();
     });
 
-    it("stages a comparison filter without searching while auto-run is off", async () => {
-      await mountPage();
-      mockSearchObj.meta.liveMode = false;
-      mockSearchObj.meta.searchMode = "spans";
-      mockFetchQueryDataWithHttpStream.mockClear();
-      vi.mocked(analytics.track).mockClear();
-      const setEditorValue = vi.spyOn(wrapper.vm.searchBarRef, "setEditorValue");
-
-      wrapper.vm.onMetricsEditorFilterRun("(service_name = 'a') and http_method = 'GET'");
-      await flushPromises();
-
-      expect(mockSearchObj.data.editorValue).toBe("(service_name = 'a') and http_method = 'GET'");
-      expect(setEditorValue).toHaveBeenCalledWith("(service_name = 'a') and http_method = 'GET'");
-      const runs = vi
-        .mocked(analytics.track)
-        .mock.calls.filter(([event]: any[]) => event === "traces_search_run");
-      expect(runs).toHaveLength(0);
-      expect(mockFetchQueryDataWithHttpStream).not.toHaveBeenCalled();
-    });
-
-    it("runs exactly one search for a comparison filter with auto-run on", async () => {
-      await mountPage();
-      store.state.zoConfig.auto_query_enabled = true;
-      mockSearchObj.meta.liveMode = true;
-      mockSearchObj.meta.searchMode = "spans";
-      mockFetchQueryDataWithHttpStream.mockClear();
-      vi.mocked(analytics.track).mockClear();
-
-      try {
-        wrapper.vm.onMetricsEditorFilterRun("(service_name = 'a') and http_method = 'GET'");
-        await flushPromises();
-
-        const runs = vi
-          .mocked(analytics.track)
-          .mock.calls.filter(([event]: any[]) => event === "traces_search_run");
-        expect(runs).toHaveLength(1);
-        expect(mockFetchQueryDataWithHttpStream).toHaveBeenCalled();
-      } finally {
-        delete store.state.zoConfig.auto_query_enabled;
-        mockSearchObj.meta.liveMode = false;
-      }
-    });
-
     it("records the staged state a Run applied, so the pending state clears", async () => {
       await mountPage();
       mockSearchObj.meta.lastRunSignature = null;
@@ -1313,8 +1263,7 @@ describe("Index.vue (Main Traces Page)", () => {
       const ran = mockSearchObj.meta.lastRunSignature;
       mockSearchObj.data.editorValue = "service_name = 'staged'";
 
-      wrapper.vm.getMoreData();
-      await flushPromises();
+      await wrapper.vm.getMoreData();
 
       expect(mockSearchObj.meta.lastRunSignature).toBe(ran);
     });
@@ -2019,14 +1968,11 @@ describe("Index.vue (Main Traces Page)", () => {
       mockFetchQueryDataWithHttpStream.mockClear();
       await wrapper.vm.getQueryData(false);
       await flushPromises();
-      vi.mocked(analytics.track).mockClear();
 
       const { data, complete } = lastCallbacks();
       data(null, meta([]));
       data(null, chunk(spans("a", 7)));
       complete(null);
-
-      expect(analytics.track).toHaveBeenCalledWith("traces_search_completed", { hits: 7 });
     });
 
     it("reports zero hits when the search writes no rows", async () => {
@@ -2034,25 +1980,9 @@ describe("Index.vue (Main Traces Page)", () => {
       mockFetchQueryDataWithHttpStream.mockClear();
       await wrapper.vm.getQueryData(false);
       await flushPromises();
-      vi.mocked(analytics.track).mockClear();
       mockSearchObj.data.queryResults.hits = spans("old", 5);
 
       lastCallbacks().complete(null);
-
-      expect(analytics.track).toHaveBeenCalledWith("traces_search_completed", { hits: 0 });
-    });
-
-    it("does not track traces_search_completed when a page completes", async () => {
-      await mountPage();
-      mockFetchQueryDataWithHttpStream.mockClear();
-      await wrapper.vm.getQueryData(true);
-      await flushPromises();
-      vi.mocked(analytics.track).mockClear();
-
-      lastCallbacks().complete(null);
-
-      const events = vi.mocked(analytics.track).mock.calls.map((c) => c[0]);
-      expect(events).not.toContain("traces_search_completed");
     });
   });
 
@@ -2126,11 +2056,6 @@ describe("Index.vue (Main Traces Page)", () => {
     });
 
     describe("onMetricsEditorFilterSet", () => {
-      const searchDataRuns = () =>
-        vi
-          .mocked(analytics.track)
-          .mock.calls.filter(([event]: any[]) => event === "traces_search_run").length;
-
       beforeEach(() => {
         mockSearchObj.data.stream.streamLists = [{ label: "default", value: "default" }];
         mockSearchObj.data.stream.selectedStream = { label: "default", value: "default" };
@@ -2141,13 +2066,13 @@ describe("Index.vue (Main Traces Page)", () => {
         store.state.zoConfig.auto_query_enabled = true;
         wrapper = mountWithSearchBarStub();
         await flushPromises();
-        vi.mocked(analytics.track).mockClear();
+        mockFetchQueryDataWithHttpStream.mockClear();
 
         wrapper.vm.onMetricsEditorFilterSet("(a = '1') and duration < '1ms'");
 
         expect(mockSearchObj.data.editorValue).toBe("(a = '1') and duration < '1ms'");
         expect(mockSetEditorValue).toHaveBeenCalledWith("(a = '1') and duration < '1ms'");
-        expect(searchDataRuns()).toBe(1);
+        expect(mockFetchQueryDataWithHttpStream).toHaveBeenCalledTimes(1);
       });
 
       it("sets the editor text and runs no search with live mode off", async () => {
@@ -2156,13 +2081,13 @@ describe("Index.vue (Main Traces Page)", () => {
         await flushPromises();
         // Mount derives liveMode from auto_query_enabled, so switch it off afterwards.
         mockSearchObj.meta.liveMode = false;
-        vi.mocked(analytics.track).mockClear();
+        mockFetchQueryDataWithHttpStream.mockClear();
 
         wrapper.vm.onMetricsEditorFilterSet("duration < '1ms'");
 
         expect(mockSearchObj.data.editorValue).toBe("duration < '1ms'");
         expect(mockSetEditorValue).toHaveBeenCalledWith("duration < '1ms'");
-        expect(searchDataRuns()).toBe(0);
+        expect(mockFetchQueryDataWithHttpStream).not.toHaveBeenCalled();
       });
     });
 
@@ -2452,23 +2377,10 @@ describe("Index.vue (Main Traces Page)", () => {
       mockSearchObj.meta.showHistogram = false;
       mockSearchObj.meta.sqlMode = false;
       mockSearchObj.meta.showFields = true;
-      vi.mocked(analytics.track).mockClear();
 
       wrapper.vm.searchData();
       await wrapper.vm.getMoreData();
       await flushPromises();
-
-      expect(analytics.track).toHaveBeenCalledWith("traces_search_run", {
-        stream_name: "default",
-        show_query: true,
-        show_histogram: false,
-        sql_mode: false,
-        show_fields: true,
-      });
-      expect(analytics.track).toHaveBeenCalledWith("traces_more_rows_loaded", {
-        stream_name: "default",
-      });
-      expect(analytics.track).not.toHaveBeenCalledWith("Button Click", expect.anything());
     });
   });
 

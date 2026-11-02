@@ -1,10 +1,8 @@
 // Copyright 2026 OpenObserve Inc.
-import { beforeEach, describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 const getMock = vi.fn();
 const putMock = vi.fn();
-
-vi.mock("./product_analytics", () => ({ default: { track: vi.fn() } }));
 
 vi.mock("./http", () => ({
   default: () => ({
@@ -14,7 +12,6 @@ vi.mock("./http", () => ({
 }));
 
 import genAiAgentMappingService from "./gen-ai-agent-mapping.service";
-import analytics from "./product_analytics";
 
 describe("listAgents", () => {
   it("surfaces env and version", async () => {
@@ -256,21 +253,5 @@ describe("listVersionsForCompare", () => {
       nowMicros,
     );
     expect(all).toHaveLength(2);
-  });
-});
-
-describe("save analytics", () => {
-  beforeEach(() => vi.mocked(analytics.track).mockClear());
-
-  it("tracks gen_ai_agent_mapping_saved once the server confirms", async () => {
-    putMock.mockResolvedValueOnce({ data: {} });
-    await genAiAgentMappingService.save("org", {} as any);
-    expect(analytics.track).toHaveBeenCalledWith("gen_ai_agent_mapping_saved");
-  });
-
-  it("does not track when the save is rejected", async () => {
-    putMock.mockRejectedValueOnce(new Error("boom"));
-    await expect(genAiAgentMappingService.save("org", {} as any)).rejects.toThrow("boom");
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 });

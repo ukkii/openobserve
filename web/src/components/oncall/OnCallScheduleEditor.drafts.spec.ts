@@ -36,7 +36,6 @@ import { byTest, clickIn } from "@/test/unit/helpers/draftDom";
 vi.mock("@/services/oncall", () => ({
   default: { setSchedule: vi.fn(), listUnavailability: vi.fn(), previewResolvedSchedule: vi.fn() },
 }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@/services/users", () => ({
   default: { orgUsers: vi.fn(() => Promise.resolve({ data: { data: [] } })) },
 }));

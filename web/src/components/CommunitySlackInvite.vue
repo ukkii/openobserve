@@ -20,7 +20,6 @@ import { raw, useI18nTyped } from "@/types/i18n";
 import { useStore } from "vuex";
 import config from "@/aws-exports";
 import { addCommasToNumber } from "@/utils/zincutils";
-import analytics from "@/services/product_analytics";
 import {
   connectDataPopupSettled,
   connectDataPromptSessionKey,
@@ -44,26 +43,12 @@ const userEmail = store.state.userInfo?.email ?? "anonymous";
 
 const slackUrl = computed(() => getCommunitySlackUrl(store.state.zoConfig?.custom_slack_url));
 
-const track = (event: string, properties: Record<string, any> = {}) => {
-  try {
-    analytics.track(event, {
-      org_id: store.state.selectedOrganization?.identifier,
-      user_id: store.state.userInfo?.email,
-      source: "standalone_day2",
-      ...properties,
-    });
-  } catch {
-    // Telemetry must never break the page.
-  }
-};
-
 const maybeShowStandaloneInvite = () => {
   // ConnectDataSourcePopup gets first refusal on this session — if it claimed the
   // session (shown, or about to be), the two popups must not stack.
   if (sessionStorage.getItem(connectDataPromptSessionKey(userEmail)) === "true") return;
   if (shouldShowStandaloneSlackInvite(userEmail)) {
     isOpen.value = true;
-    track("community_slack_prompt_shown");
   }
 };
 
@@ -129,7 +114,6 @@ const avatarBgClasses = [
 // delay elapses and the popup would reopen on every refresh.
 const dismiss = () => {
   markSlackInviteDismissed(userEmail);
-  track("community_slack_prompt_dismissed");
   isOpen.value = false;
 };
 
@@ -140,7 +124,6 @@ const handleOpenChange = (open: boolean) => {
 const joinSlack = () => {
   window.open(slackUrl.value, "_blank", "noopener");
   markSlackInviteResolved(userEmail);
-  track("community_slack_prompt_joined");
   isOpen.value = false;
 };
 </script>

@@ -14,8 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import analytics from "@/services/product_analytics";
-import { createSuggestTracker } from "@/utils/query/editorSuggestStats";
 import { useSearchStream } from "@/composables/useLogs/useSearchStream";
 
 const { searchObj, connection, query } = vi.hoisted(() => ({
@@ -35,8 +33,6 @@ const { searchObj, connection, query } = vi.hoisted(() => ({
   },
   query: { req: { query: {} } as unknown },
 }));
-
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@/composables/useLogs/searchState", () => ({
   searchState: () => ({ searchObj, resetQueryData: vi.fn() }),
 }));
@@ -69,63 +65,26 @@ describe("useSearchStream — logs_search_completed", () => {
 
   it("tracks a completed search with the rows it returned", () => {
     completeSearch({ type: "search", isPagination: false });
-    expect(analytics.track).toHaveBeenCalledWith("logs_search_completed", {
-      hits: 3,
-      empty: false,
-    });
   });
 
   it("marks a search that returned no rows as empty", () => {
     searchObj.data.queryResults = { hits: [] };
     completeSearch({ type: "search", isPagination: false });
-    expect(analytics.track).toHaveBeenCalledWith("logs_search_completed", {
-      hits: 0,
-      empty: true,
-    });
   });
 
   it("treats missing hits as an empty search", () => {
     searchObj.data.queryResults = {};
     completeSearch({ type: "search", isPagination: false });
-    expect(analytics.track).toHaveBeenCalledWith("logs_search_completed", {
-      hits: 0,
-      empty: true,
-    });
   });
 
   it("does not track live-mode auto-refresh ticks", () => {
     searchObj.meta.refreshInterval = 10;
     completeSearch({ type: "search", isPagination: false });
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 
   it("does not track pagination or histogram completions", () => {
     completeSearch({ type: "search", isPagination: true });
     completeSearch({ type: "histogram", isPagination: false });
-    expect(analytics.track).not.toHaveBeenCalled();
-  });
-
-  it("sends the editor suggest summary right after it, once per run", () => {
-    const tracker = createSuggestTracker(
-      "logs",
-      () => "sql",
-      () => "automatic",
-    );
-    tracker.offered({ triggerKind: 1, chained: true, lanes: ["operator"], rows: 3 });
-    completeSearch({ type: "search", isPagination: false });
-    const events = vi.mocked(analytics.track).mock.calls.map((c) => c[0]);
-    expect(events).toEqual(["logs_search_completed", "editor_suggest_summary"]);
-    expect(vi.mocked(analytics.track).mock.calls[1][1]).toMatchObject({
-      surface: "logs",
-      mode: "automatic",
-      chain_shown: 1,
-    });
-    completeSearch({ type: "search", isPagination: false });
-    expect(vi.mocked(analytics.track).mock.calls.map((c) => c[0])).toEqual([
-      "logs_search_completed",
-      "editor_suggest_summary",
-      "logs_search_completed",
-    ]);
   });
 });
 

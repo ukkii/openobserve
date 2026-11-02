@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 // POST /{org_id}/reports  -- Create Report
 // GET /{org_id}/reports/{name} -- Get One Report
@@ -51,7 +50,6 @@ const reports = {
     return http()
       .put(`/api/${org_identifier}/reports/${encodeURIComponent(payload.name)}`, payload)
       .then((res) => {
-        analytics.track("report_updated");
         return res;
       });
   },
@@ -84,7 +82,6 @@ const reports = {
     return http()
       .post(url, payload)
       .then((res) => {
-        analytics.track("report_created");
         return res;
       });
   },
@@ -99,7 +96,6 @@ const reports = {
     return http()
       .put(url, payload)
       .then((res) => {
-        analytics.track("report_updated");
         return res;
       });
   },
@@ -122,7 +118,6 @@ const reports = {
     return http()
       .delete(`/api/v2/${org_identifier}/reports/${report_id}`)
       .then((res) => {
-        analytics.track("report_deleted", { count: 1 });
         return res;
       });
   },
@@ -130,8 +125,6 @@ const reports = {
     return http()
       .delete(`/api/v2/${org_identifier}/reports/bulk`, { data })
       .then((res) => {
-        const count = res.data?.successful?.length ?? 0;
-        if (count > 0) analytics.track("report_deleted", { count });
         return res;
       });
   },
@@ -162,7 +155,6 @@ const reports = {
     return http()
       .patch(`/api/v2/${org_identifier}/reports/${report_id}/enable?value=${state}`)
       .then((res) => {
-        analytics.track(state ? "report_enabled" : "report_disabled", { count: 1 });
         return res;
       });
   },

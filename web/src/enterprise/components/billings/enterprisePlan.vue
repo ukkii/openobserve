@@ -122,7 +122,6 @@ import OTag from "@/lib/core/Badge/OTag.vue";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
 import OSeparator from "@/lib/core/Separator/OSeparator.vue";
 import OCard from "@/lib/core/Card/OCard.vue";
-import analytics from "@/services/product_analytics";
 
 export default defineComponent({
   name: "enterprisePlan",
@@ -132,7 +131,6 @@ export default defineComponent({
     const { t } = useI18nTyped();
 
     const contactSales = () => {
-      analytics.track("billing_contact_sales_clicked", { plan: "enterprise" });
       window.open(siteURL.contactSales, "_blank");
     };
 

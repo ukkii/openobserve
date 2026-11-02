@@ -53,7 +53,6 @@ vi.mock("@/composables/useLogs/searchState", () => ({
 vi.mock("@/composables/useLogs/logsUtils", () => ({
   logsUtils: () => ({ addTraceId: vi.fn(), removeTraceId: vi.fn() }),
 }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@/composables/useNotifications", () => ({
   default: () => ({ showErrorNotification: vi.fn() }),
 }));

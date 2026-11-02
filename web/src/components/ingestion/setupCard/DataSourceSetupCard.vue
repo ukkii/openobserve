@@ -33,7 +33,6 @@ import useIngestion from "@/composables/useIngestion";
 import { useOrgCredential } from "@/composables/useOrgCredential";
 import { basicIngestToken } from "@/composables/useCredentialSnippet";
 import { importHostMetricsDashboard } from "@/composables/useHostMetricsDashboard";
-import analytics from "@/services/product_analytics";
 import {
   SETUP_DASHBOARD_BY_SLUG,
   importSetupDashboard,
@@ -205,8 +204,6 @@ const onStepAction = async (actionId: string) => {
       });
       return;
     }
-    // Only this user-invoked path counts; the import in onDetected runs on its own.
-    if (result.status === "created") analytics.track("dashboard_created");
     target = { org, id: result.dashboardId, folderId: result.folderId };
     importedDashboard.value = target;
   }

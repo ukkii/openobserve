@@ -25,7 +25,6 @@ import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import { raw, useI18nTyped } from "@/types/i18n";
 import dashboardsService from "@/services/dashboards";
-import analytics from "@/services/product_analytics";
 import dashboardJson from "@/assets/dashboards/host_metrics.dashboard.json";
 import { importHostMetricsDashboard } from "@/composables/useHostMetricsDashboard";
 import { useWorkloadDetection } from "@/composables/useWorkloadDetection";
@@ -124,7 +123,6 @@ const onHostMetricsClick = async () => {
         ),
       });
     } else if (result.status === "created") {
-      analytics.track("dashboard_created");
       emit("imported");
       goToDashboard(result.dashboardId);
     } else {
@@ -145,7 +143,6 @@ const confirmReplace = async () => {
     // The AWS-tile mechanics: let the delete settle before re-creating.
     await new Promise((resolve) => setTimeout(resolve, 500));
     const created = await dashboardsService.create(orgId.value, dashboardJson, "default");
-    analytics.track("dashboard_created");
     const dashboardId = created.data?.[`v${created.data?.version}`]?.dashboardId ?? "";
     emit("imported");
     goToDashboard(dashboardId);

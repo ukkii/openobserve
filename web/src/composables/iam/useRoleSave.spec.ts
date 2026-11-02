@@ -13,15 +13,12 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ref } from "vue";
 import { flushPromises } from "@vue/test-utils";
 import i18n from "@/locales";
 import { useRoleSave } from "@/composables/iam/useRoleSave";
-import analytics from "@/services/product_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
-
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@/lib/feedback/Toast/useToast", () => ({ toast: vi.fn() }));
 
 type Staged = { object: string; permission: string };
@@ -49,27 +46,6 @@ const makeDeps = (
   pendingCounts: vi.fn(() => ({ changes: 1, modules: 1 })),
   presetSettled: vi.fn(() => Promise.resolve()),
   t: i18n.global.t as any,
-});
-
-describe("useRoleSave product analytics", () => {
-  beforeEach(() => {
-    vi.mocked(analytics.track).mockClear();
-  });
-
-  it("tracks role_updated once the role update succeeds", async () => {
-    useRoleSave(makeDeps(() => Promise.resolve({}))).saveRole();
-    await flushPromises();
-    expect(analytics.track).toHaveBeenCalledWith("role_updated", {
-      permissions_changed: true,
-      members_changed: false,
-    });
-  });
-
-  it("does not track role_updated when the role update fails", async () => {
-    useRoleSave(makeDeps(() => Promise.reject({ response: { status: 500 } }))).saveRole();
-    await flushPromises();
-    expect(analytics.track).not.toHaveBeenCalled();
-  });
 });
 
 describe("useRoleSave toast", () => {

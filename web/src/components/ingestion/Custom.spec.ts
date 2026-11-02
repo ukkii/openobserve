@@ -4,13 +4,6 @@ import Custom from "@/components/ingestion/Custom.vue";
 import i18n from "@/locales";
 import store from "@/test/unit/helpers/store";
 
-// Mock services
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
 vi.mock("@/utils/zincutils", () => ({
   getImageURL: vi.fn(() => "mock-image-url"),
 }));
@@ -281,26 +274,6 @@ describe("Custom Component", () => {
         successMessage: "Content Copied Successfully!",
         errorMessage: "Error while copy content.",
         timeout: 5000,
-      });
-    });
-
-    it("should track product analytics for copy action", async () => {
-      const { copyToClipboard } = await import("@/utils/clipboard");
-      vi.mocked(copyToClipboard).mockResolvedValue(true);
-
-      const analytics = await import("@/services/product_analytics");
-
-      const mockContent = {
-        innerText: "test content",
-      };
-
-      await wrapper.vm.copyToClipboardFn(mockContent);
-
-      expect(analytics.default.track).toHaveBeenCalledWith("Button Click", {
-        button: "Copy to Clipboard",
-        ingestion: mockRouter.currentRoute.value.name,
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Ingestion",
       });
     });
   });
@@ -814,51 +787,6 @@ describe("Custom Component", () => {
       const propDefinition = wrapper.vm.$options.props.currOrgIdentifier;
       expect(propDefinition.type).toBe(String);
       expect(propDefinition.default).toBe("");
-    });
-  });
-
-  describe("Product Analytics", () => {
-    it("should track analytics with correct parameters for different routes", async () => {
-      const { copyToClipboard } = await import("@/utils/clipboard");
-      vi.mocked(copyToClipboard).mockResolvedValue(true);
-
-      const analytics = await import("@/services/product_analytics");
-
-      // Test with different route
-      mockRouter.currentRoute.value.name = "prometheus";
-
-      const mockContent = {
-        innerText: "test analytics content",
-      };
-
-      await wrapper.vm.copyToClipboardFn(mockContent);
-
-      expect(analytics.default.track).toHaveBeenCalledWith("Button Click", {
-        button: "Copy to Clipboard",
-        ingestion: "prometheus",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Ingestion",
-      });
-    });
-
-    it("should not track analytics when copy fails", async () => {
-      const { copyToClipboard } = await import("@/utils/clipboard");
-      vi.mocked(copyToClipboard).mockRejectedValueOnce(new Error("Copy failed"));
-
-      const analytics = await import("@/services/product_analytics");
-
-      const mockContent = {
-        innerText: "test analytics content",
-      };
-
-      try {
-        await wrapper.vm.copyToClipboardFn(mockContent);
-      } catch (error) {
-        // Expected error
-      }
-
-      // analytics.track is only called on success, so it should NOT be called on failure
-      expect(analytics.default.track).not.toHaveBeenCalled();
     });
   });
 

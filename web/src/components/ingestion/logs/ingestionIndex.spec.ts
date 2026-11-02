@@ -23,13 +23,6 @@ import store from "@/test/unit/helpers/store";
 import router from "@/test/unit/helpers/router";
 import i18n from "@/locales";
 
-// Mock services and utilities
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
 vi.mock("@/aws-exports", () => ({
   default: {
     isCloud: "false",
@@ -182,23 +175,6 @@ describe("IngestLogs Index Component", () => {
       }).not.toThrow();
     });
 
-    it("should track product analytics on copy", async () => {
-      const mockContent = { innerText: "test content" };
-
-      // Get the mocked product analytics module
-      const analyticsModule = await import("@/services/product_analytics");
-      const mockAnalytics = analyticsModule.default;
-
-      await wrapper.vm.copyToClipboardFn(mockContent);
-
-      expect(mockAnalytics.track).toHaveBeenCalledWith("Button Click", {
-        button: "Copy to Clipboard",
-        ingestion: wrapper.vm.router.currentRoute.value.name,
-        user_org: "default",
-        page: "Ingestion",
-      });
-    });
-
     it("should handle empty content", async () => {
       const mockContent = { innerText: "" };
 
@@ -256,24 +232,6 @@ describe("IngestLogs Index Component", () => {
         "test &amp; content &lt; &gt;",
         expect.any(Function),
         mockCopyToClipboardOptions,
-      );
-    });
-
-    it("should track analytics with correct current route name", async () => {
-      const mockContent = { innerText: "test" };
-      wrapper.vm.router.currentRoute.value.name = "fluentbit";
-
-      // Get the mocked product analytics module
-      const analyticsModule = await import("@/services/product_analytics");
-      const mockAnalytics = analyticsModule.default;
-
-      await wrapper.vm.copyToClipboardFn(mockContent);
-
-      expect(mockAnalytics.track).toHaveBeenCalledWith(
-        "Button Click",
-        expect.objectContaining({
-          ingestion: "fluentbit",
-        }),
       );
     });
   });

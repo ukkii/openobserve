@@ -126,8 +126,6 @@ vi.mock("@/services/alerts", () => ({
   },
 }));
 vi.mock("@/services/anomaly_detection", () => ({ default: { get: vi.fn() } }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 
 // QueryConfig and PreviewAlert are deliberately NOT stubbed — the defects this
 // spec pins live in what they do to the form on a whole-form seed, and in the

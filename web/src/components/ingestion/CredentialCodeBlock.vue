@@ -16,13 +16,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 <script setup lang="ts">
 import { computed, inject, toRef } from "vue";
-import { useRouter } from "vue-router";
 import OBanner from "@/lib/feedback/Banner/OBanner.vue";
 import OCodeBlock from "@/lib/core/Code/OCodeBlock.vue";
 import OSkeleton from "@/lib/feedback/Skeleton/OSkeleton.vue";
 import type { CodeBlockChrome, CodeBlockCopyPayload } from "@/lib/core/Code/OCodeBlock.types";
 import { useI18nTyped } from "@/types/i18n";
-import analytics from "@/services/product_analytics";
 import { OPEN_TOKEN_PICKER, useCredentialSnippet } from "@/composables/useCredentialSnippet";
 import { FIRST_EVENT_SNIPPET_COPIED } from "@/composables/firstEvent/firstEventCopied";
 
@@ -41,7 +39,6 @@ const props = withDefaults(
 );
 
 const { t } = useI18nTyped();
-const router = useRouter();
 const openTokenPicker = inject(OPEN_TOKEN_PICKER, null);
 const snippetCopied = inject(FIRST_EVENT_SNIPPET_COPIED, null);
 
@@ -59,8 +56,7 @@ const masked = computed(() =>
   needsPasscode.value && codeMasked.value !== code.value ? codeMasked.value : undefined,
 );
 
-const onCopy = ({ partial }: CodeBlockCopyPayload) => {
-  analytics.track("snippet_copied", { route: router?.currentRoute.value.name, partial });
+const onCopy = ({ partial: _partial }: CodeBlockCopyPayload) => {
   snippetCopied?.();
 };
 </script>

@@ -89,7 +89,6 @@ import { useI18nTyped, raw } from "@/types/i18n";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import config from "@/aws-exports";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import {
   makeAddUpdateOrganizationSchema,
@@ -128,7 +127,6 @@ export default defineComponent({
     const store: any = useStore();
     const router: any = useRouter();
     const { t } = useI18nTyped();
-    const { track } = useReo();
 
     const addUpdateOrganizationSchema = makeAddUpdateOrganizationSchema(t);
 
@@ -172,7 +170,6 @@ export default defineComponent({
       addUpdateOrganizationSchema,
       addUpdateOrganizationDefaults,
       store,
-      track,
       config,
       currentOrgName,
       canMakeBilledMember,
@@ -232,11 +229,6 @@ export default defineComponent({
           ),
         });
       }
-
-      this.track("Button Click", {
-        button: "Save Organization",
-        page: "Add Organization",
-      });
     },
   },
 });

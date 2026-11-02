@@ -31,18 +31,6 @@ vi.mock("@/services/jstransform", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({
-    track: vi.fn(),
-  }),
-}));
-
 const { mockToast, mockDismiss } = vi.hoisted(() => {
   const dismiss = vi.fn();
   const toast = vi.fn(() => dismiss);

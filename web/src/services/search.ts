@@ -16,7 +16,6 @@
 import { generateTraceContext } from "@/utils/zincutils";
 import { patchLargeNumbersInJson } from "@/utils/nsFieldsPatch";
 import http from "./http";
-import analytics from "./product_analytics";
 import type {
   OrgTraceTimeRangeResponse,
   TraceTimeRangeOptions,
@@ -528,7 +527,6 @@ const search = {
     return http({ headers: { traceparent } })
       .post(url, query)
       .then((res) => {
-        analytics.track("search_job_created", { stream_type: page_type });
         return res;
       });
   },

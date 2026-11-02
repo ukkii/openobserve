@@ -417,7 +417,6 @@ import useDependencyGraph, {
   depNodeId,
 } from "@/composables/alerts/useDependencyGraph";
 import type { DepNodeKind } from "@/composables/alerts/useDependencyGraph";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { useShortcuts } from "@/lib/vue-shortcut-manager";
 import { focusSearchInput, isInputFocused } from "@/utils/keyboardShortcuts";
@@ -432,7 +431,6 @@ const AddTemplate = defineAsyncComponent(() => import("@/components/alerts/AddTe
 const store = useStore();
 const { t } = useI18nTyped();
 const router = useRouter();
-const { track } = useReo();
 const { graph: depGraph, loadGraph: loadDepGraph } = useDependencyGraph();
 const templateDrafts = useEditorDraftIds("alert_template");
 const draftLabel = useDraftLabel();
@@ -665,12 +663,6 @@ const getTemplateByName = (name: string) => {
   return templates.value.find((template) => template.name === name);
 };
 const editTemplate = (template: any = null) => {
-  if (!template) {
-    track("Button Click", {
-      button: "Add Template",
-      page: "Alert Templates",
-    });
-  }
   resetEditingTemplate();
   cloningTemplate.value = false;
   cloningSource.value = null;
@@ -706,10 +698,6 @@ const resetEditingTemplate = () => {
   editingTemplate.value = null;
 };
 const cloneTemplate = (template: Template) => {
-  track("Button Click", {
-    button: "Clone Template",
-    page: "Alert Templates",
-  });
   openClone(template);
 };
 // The source rides in the URL so a reload reopens the clone on its own draft slot.

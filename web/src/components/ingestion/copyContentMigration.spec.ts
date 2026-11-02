@@ -29,9 +29,6 @@ vi.mock("@/utils/clipboard", () => ({
   copyToClipboard: (...args: unknown[]) => copyMock(...args),
 }));
 const track = vi.fn();
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: (...args: unknown[]) => track(...args) },
-}));
 const credentialApi = vi.hoisted(() => ({
   get_organization_passcode: vi.fn(),
   list_org_ingestion_tokens: vi.fn(),

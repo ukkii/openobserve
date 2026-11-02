@@ -312,7 +312,6 @@ import type { TemplateData } from "@/ts/interfaces/index";
 import { useRouter } from "vue-router";
 import AppTabs from "@/components/common/AppTabs.vue";
 import OPageLayout from "@/lib/core/PageLayout/OPageLayout.vue";
-import { useReo } from "@/services/reodotdev_analytics";
 import { validateTemplateBody } from "@/utils/templates/validation";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
 import { toast } from "@/lib/feedback/Toast/useToast";
@@ -372,7 +371,6 @@ const orgIdForWrites = useOrgId();
 const saveTemplateWrite = useMutation(() =>
   saveTemplateMutation(orgIdForWrites.value, () => isUpdatingTemplate.value),
 );
-const { track } = useReo();
 
 // Owner pattern (Rule ③): AddTemplate OWNS <OForm>, and it needs to read `type`
 // at setup to drive conditional rendering (the email title input v-if + the
@@ -852,10 +850,6 @@ async function saveTemplate(value: AddTemplateForm) {
       .mutateAsync({ template_name: value.name, data })
       .then(onSuccess)
       .catch(onError);
-    track("Button Click", {
-      button: "Update Template",
-      page: "Add Template",
-    });
     return request;
   }
 
@@ -863,10 +857,6 @@ async function saveTemplate(value: AddTemplateForm) {
     .mutateAsync({ template_name: value.name, data })
     .then(onSuccess)
     .catch(onError);
-  track("Button Click", {
-    button: "Create Template",
-    page: "Add Template",
-  });
   return request;
 }
 

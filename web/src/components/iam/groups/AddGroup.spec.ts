@@ -32,10 +32,6 @@ vi.mock("@/services/iam", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({ track: vi.fn() }),
-}));
-
 const { mockToast } = vi.hoisted(() => ({
   mockToast: vi.fn(),
 }));

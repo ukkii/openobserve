@@ -32,8 +32,6 @@ import useSearchResponseHandler from "@/composables/useLogs/useSearchResponseHan
 import useSearchHistogramManager from "@/composables/useLogs/useSearchHistogramManager";
 import useSearchPagination from "@/composables/useLogs/useSearchPagination";
 import type { TranslateFn } from "@/types/i18n";
-import analytics from "@/services/product_analytics";
-import { flushEditorSuggestSummary } from "@/utils/query/editorSuggestStats";
 import { useLogsAutoRun } from "@/composables/useLogs/logsAutoRun";
 import { toRunError, type RunError } from "@/utils/queryHistory/recentSearches";
 import {
@@ -140,12 +138,6 @@ export const useSearchStream = (t: TranslateFn) => {
       return;
     }
     autoRun.onPayloadComplete(payload);
-
-    if (payload.type === "search" && !payload.isPagination && searchObj.meta.refreshInterval == 0) {
-      const hits = searchObj.data.queryResults?.hits?.length ?? 0;
-      analytics.track("logs_search_completed", { hits, empty: hits === 0 });
-      flushEditorSuggestSummary();
-    }
 
     // Process histogram if needed
     if (payload.type === "search" && !payload.isPagination && searchObj.meta.refreshInterval == 0) {

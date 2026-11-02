@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 interface DomainRestriction {
   name: string;
@@ -30,7 +29,6 @@ const domainManagement = {
     return http()
       .put(`/api/${metaOrg}/domain_management`, domain)
       .then((res) => {
-        analytics.track("domain_restrictions_updated");
         return res;
       });
   },

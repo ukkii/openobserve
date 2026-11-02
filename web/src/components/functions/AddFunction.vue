@@ -216,14 +216,12 @@ import {
 import { raw, useI18nTyped } from "@/types/i18n";
 import { useStore } from "vuex";
 import config from "@/aws-exports";
-import analytics from "../../services/product_analytics";
 import TestFunction from "@/components/functions/TestFunction.vue";
 import FunctionsToolbar from "@/components/functions/FunctionsToolbar.vue";
 import FullViewContainer from "@/components/functions/FullViewContainer.vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import { useRouter } from "vue-router";
 import O2AIChat from "@/components/O2AIChat.vue";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { useVrlPlaceholder, useJsPlaceholder } from "@/composables/useVrlPlaceholder";
 import OSplitter from "@/lib/core/Splitter/OSplitter.vue";
@@ -321,7 +319,6 @@ export default defineComponent({
     const store: any = useStore();
     const router = useRouter();
     const { isMobile } = useBreakpoint();
-    const { track } = useReo();
 
     // let beingUpdated: boolean = false;
     const disableColor: any = ref("");
@@ -579,17 +576,6 @@ export default defineComponent({
         });
         loadingNotification();
       }
-
-      analytics.track("Button Click", {
-        button: "Save Function",
-        user_org: store.state.selectedOrganization.identifier,
-        function_name: value.name,
-        page: "Add/Update Function",
-      });
-      track("Button Click", {
-        button: "Save Function",
-        page: "Add Function",
-      });
     };
 
     const onTestFunction = () => {
@@ -631,10 +617,6 @@ export default defineComponent({
     };
 
     const cancelAddFunction = async () => {
-      track("Button Click", {
-        button: "Cancel Function",
-        page: "Add Function",
-      });
       if (draftsActive) {
         if (await functionDraft.confirmLeave()) emit("cancel:hideform");
         return;

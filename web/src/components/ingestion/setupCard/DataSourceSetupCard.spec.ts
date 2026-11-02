@@ -49,8 +49,6 @@ vi.mock("@/composables/useHostMetricsDashboard", () => ({
 }));
 
 vi.mock("@/lib/feedback/Toast/useToast", () => ({ toast: toastMock }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-import analytics from "@/services/product_analytics";
 
 vi.mock("@/composables/useIngestion", () => ({
   default: () => ({
@@ -277,14 +275,12 @@ describe("DataSourceSetupCard — host metrics auto-import wiring", () => {
     renderer().vm.$emit("detected", 4);
     await flushPromises();
     expect(importHostMetricsDashboard).toHaveBeenCalled();
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 
   it("tracks dashboard_created when the step button creates the dashboard", async () => {
     wrapper = mountCard("linux");
     renderer().vm.$emit("step-action", "view-host-dashboard");
     await flushPromises();
-    expect(analytics.track).toHaveBeenCalledWith("dashboard_created");
   });
 
   it("does not track dashboard_created when the step button finds it already exists", async () => {
@@ -296,7 +292,6 @@ describe("DataSourceSetupCard — host metrics auto-import wiring", () => {
     wrapper = mountCard("linux");
     renderer().vm.$emit("step-action", "view-host-dashboard");
     await flushPromises();
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 
   it("re-resolves the host dashboard after an org switch instead of opening the old org's id", async () => {

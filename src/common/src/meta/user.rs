@@ -17,7 +17,6 @@ use config::meta::user::{DBUser, User, UserOrg, UserRole};
 #[cfg(feature = "cloud")]
 use o2_enterprise::enterprise::cloud::OrgInviteStatus;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "enterprise")]
 use strum::IntoEnumIterator;
 use utoipa::ToSchema;
 
@@ -116,12 +115,10 @@ impl UserOrgRole {
         if role.custom.is_some() {
             return None;
         }
-        let base_role = role.role.parse().ok()?;
-        matches!(
-            base_role,
-            UserRole::Admin | UserRole::Editor | UserRole::Viewer | UserRole::User
-        )
-        .then_some(Self {
+        let base_role = get_roles()
+            .into_iter()
+            .find(|candidate| candidate.to_string().eq_ignore_ascii_case(&role.role))?;
+        Some(Self {
             base_role,
             custom_role: None,
         })
@@ -189,12 +186,9 @@ pub fn get_roles() -> Vec<UserRole> {
 
 #[cfg(not(feature = "enterprise"))]
 pub fn get_roles() -> Vec<UserRole> {
-    vec![
-        UserRole::Admin,
-        UserRole::Editor,
-        UserRole::Viewer,
-        UserRole::User,
-    ]
+    UserRole::iter()
+        .filter(UserRole::is_community_assignable)
+        .collect()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -458,7 +452,7 @@ impl From<&UserRoleRequest> for UserOrgRole {
         #[cfg(feature = "enterprise")]
         let base_role = standard_role.unwrap_or_else(get_default_user_role);
         #[cfg(not(feature = "enterprise"))]
-        let base_role = standard_role.unwrap_or(UserRole::User);
+        let base_role = standard_role.unwrap_or_else(get_default_user_role);
 
         UserOrgRole {
             base_role,
@@ -932,6 +926,18 @@ mod tests {
                 })
             );
         }
+
+        let mixed_case = UserRoleRequest {
+            role: "Admin".to_string(),
+            custom: None,
+        };
+        assert_eq!(
+            UserOrgRole::from_community(&mixed_case),
+            Some(UserOrgRole {
+                base_role: UserRole::Admin,
+                custom_role: None,
+            })
+        );
 
         for role in ["unknown", "root", "service_account", "sre_agent"] {
             let request = UserRoleRequest {

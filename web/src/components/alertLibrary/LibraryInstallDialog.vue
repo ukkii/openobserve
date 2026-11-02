@@ -277,7 +277,6 @@ import { saveAlertMutation } from "@/services/alerts.queries";
 import { alertKeys } from "@/services/alerts.querykeys";
 import { saveAnomalyConfigMutation } from "@/services/anomaly_detection.queries";
 import { useMutation } from "@tanstack/vue-query";
-import analytics from "@/services/product_analytics";
 import type { AlertLibraryEntry, AlertLibraryFile } from "@/types/alertLibrary";
 import { raw, useI18nTyped, type I18nText } from "@/types/i18n";
 import { getFoldersListByType } from "@/utils/commons";
@@ -614,10 +613,6 @@ const install = async (ids: string[]) => {
   if (anomalyNow > 0) anomalyInstalled.value = true;
   if (installedNow.length > 0) {
     emit("installed", { entryIds: installedNow });
-    analytics.track("library_alert_installed", {
-      count: installedNow.length,
-      anomaly_count: anomalyNow,
-    });
   }
 
   const failed = failedIds.value.length;

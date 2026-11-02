@@ -54,10 +54,6 @@ vi.mock("@/utils/awsIntegrations", () => ({
   QUICK_SETUP_SERVICES: MOCK_SERVICES,
 }));
 
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: vi.fn() },
-}));
-
 vi.mock("@/utils/clipboard", () => ({
   copyToClipboard: vi.fn().mockResolvedValue(true),
 }));

@@ -17,13 +17,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import aiToolsets from "./ai_toolsets";
 import http from "./http";
-import analytics from "./product_analytics";
 
 vi.mock("./http", () => {
   const mockClient = { post: vi.fn() };
   return { default: vi.fn(() => mockClient) };
 });
-vi.mock("./product_analytics", () => ({ default: { track: vi.fn() } }));
 
 describe("aiToolsets.create", () => {
   const client = (http as unknown as ReturnType<typeof vi.fn>)();
@@ -36,15 +34,11 @@ describe("aiToolsets.create", () => {
     client.post.mockResolvedValue({ data: {} });
 
     await aiToolsets.create("default", { name: "t", kind: "mcp" });
-
-    expect(analytics.track).toHaveBeenCalledWith("ai_toolset_created", { kind: "mcp" });
   });
 
   it("does not track a rejected create", async () => {
     client.post.mockRejectedValue(new Error("boom"));
 
     await expect(aiToolsets.create("default", { name: "t", kind: "mcp" })).rejects.toThrow("boom");
-
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 });

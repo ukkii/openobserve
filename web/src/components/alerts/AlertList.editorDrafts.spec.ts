@@ -73,8 +73,6 @@ vi.mock("@/services/alert_destination", async (importOriginal) => {
   const { overlayServiceMock } = await import("@/test/unit/helpers/mockService");
   return overlayServiceMock(await importOriginal(), { default: { list: vi.fn() } });
 });
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 
 vi.setConfig({ testTimeout: 20000 });
 

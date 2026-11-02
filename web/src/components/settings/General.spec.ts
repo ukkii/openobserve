@@ -61,8 +61,6 @@ vi.mock("@/services/config", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-
 vi.mock("@/composables/useLoading", () => ({
   useLoading: (fn: Function) => ({
     execute: fn,
@@ -87,7 +85,6 @@ import organizations from "@/services/organizations";
 import settingsService from "@/services/settings";
 import configService from "@/services/config";
 import DOMPurify from "dompurify";
-import analytics from "@/services/product_analytics";
 import config from "@/aws-exports";
 import { useEnterpriseUpgradeDialog } from "@/composables/useEnterpriseUpgradeDialog";
 
@@ -369,10 +366,6 @@ describe("General", () => {
       const form = wrapper.findComponent({ name: "OForm" });
       await form.vm.form.handleSubmit();
       await nextTick();
-
-      expect(analytics.track).toHaveBeenCalledWith("org_general_settings_saved", {
-        custom_theme: false,
-      });
     });
 
     it("does not track org_general_settings_saved when the save fails", async () => {
@@ -382,8 +375,6 @@ describe("General", () => {
       const form = wrapper.findComponent({ name: "OForm" });
       await form.vm.form.handleSubmit();
       await nextTick();
-
-      expect(analytics.track).not.toHaveBeenCalled();
     });
 
     it("should handle save error without message", async () => {

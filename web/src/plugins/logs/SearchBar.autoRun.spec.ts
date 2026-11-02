@@ -23,7 +23,6 @@ import config from "@/aws-exports";
 import SearchBar from "@/plugins/logs/SearchBar.vue";
 import { resetLogsAutoRunForTests } from "@/composables/useLogs/logsAutoRun";
 import searchService from "@/services/search";
-import analytics from "@/services/product_analytics";
 
 const { scheduleSearch, toastMock, getViewDetail } = vi.hoisted(() => ({
   scheduleSearch: vi.fn(),

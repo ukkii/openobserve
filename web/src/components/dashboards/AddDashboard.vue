@@ -51,7 +51,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 <script lang="ts">
 import { defineComponent, ref } from "vue";
 import dashboardService from "../../services/dashboards";
-import analytics from "@/services/product_analytics";
 import { useI18nTyped, raw } from "@/types/i18n";
 import { useStore } from "vuex";
 import { getImageURL } from "../../utils/zincutils";
@@ -151,7 +150,6 @@ export default defineComponent({
           baseObj,
           selectedFolder.value.value ?? "default",
         );
-        analytics.track("dashboard_created");
 
         const data = convertDashboardSchemaVersion(res?.data["v" + res?.data?.version]);
 

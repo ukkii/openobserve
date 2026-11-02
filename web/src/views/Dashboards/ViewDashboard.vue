@@ -684,7 +684,6 @@ import { useStore } from "vuex";
 import { useI18nTyped } from "@/types/i18n";
 import { ANNOTATION_PREVIEW_CONTEXT_KEY } from "@/composables/dashboard/useDashboardAnnotationSources";
 import ShareButton from "@/components/common/ShareButton.vue";
-import analytics from "@/services/product_analytics";
 import DateTimePickerDashboard from "@/components/DateTimePickerDashboard.vue";
 import {
   onBeforeRouteLeave,
@@ -2471,7 +2470,7 @@ export default defineComponent({
       }
     };
 
-    const onDashboardShared = () => analytics.track("dashboard_shared");
+    const onDashboardShared = () => undefined;
 
     /**
      * Computed property for dashboard share URL

@@ -342,7 +342,6 @@ import {
   exemplarOverrideKey,
 } from "@/composables/dashboard/useExemplarOverride";
 import { raw, useI18nTyped } from "@/types/i18n";
-import analytics from "@/services/product_analytics";
 import {
   addPanel,
   checkIfVariablesAreLoaded,
@@ -1719,11 +1718,6 @@ export default defineComponent({
     const finishPanelSave = async (dashId: string, mode: PanelSaveMode = "view") => {
       const wasNew = !editMode.value;
       rememberPanelStream();
-      analytics.track("dashboard_panel_saved", {
-        chart_type: dashboardPanelData.data.type,
-        is_new: wasNew,
-        ...(mode === "stay" ? { stay: true } : {}),
-      });
 
       discardDraft();
       if (mode !== "stay") isUnsavedTrackingActive = false;

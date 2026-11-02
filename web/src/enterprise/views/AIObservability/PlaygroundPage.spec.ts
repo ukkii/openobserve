@@ -52,8 +52,6 @@ vi.mock("vuex", async () => {
 });
 
 vi.mock("@/lib/feedback/Toast/useToast", () => ({ toast: (...args: unknown[]) => toast(...args) }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-import analytics from "@/services/product_analytics";
 import { PlaygroundRunError } from "@/services/llm-playground.service";
 // The real hash runs on the thread pool; under CI load it outlives flushPromises and leaves providers unloaded.
 vi.mock("@/utils/userOrgKey", () => ({
@@ -425,8 +423,6 @@ describe("PlaygroundPage", () => {
     await flushPromises();
 
     expect(runPlayground).toHaveBeenCalledTimes(3);
-    expect(analytics.track).toHaveBeenCalledTimes(1);
-    expect(analytics.track).toHaveBeenCalledWith("llm_playground_run_completed", { count: 2 });
   });
 
   it("does not track a Run All in which every variant failed", async () => {
@@ -435,16 +431,12 @@ describe("PlaygroundPage", () => {
 
     page.onRunAll();
     await flushPromises();
-
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 
   it("tracks a single variant run with count 1", async () => {
     const page = vm(await mountPage());
 
     await page.onRunVariant(page.draft.variants[0].id);
-
-    expect(analytics.track).toHaveBeenCalledWith("llm_playground_run_completed", { count: 1 });
   });
 
   it("hands the variant's config to the experiment form", async () => {

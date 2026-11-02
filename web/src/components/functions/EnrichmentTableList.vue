@@ -495,12 +495,10 @@ import OEmptyState from "@/lib/core/EmptyState/OEmptyState.vue";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import OToggleGroup from "@/lib/core/ToggleGroup/OToggleGroup.vue";
 import OToggleGroupItem from "@/lib/core/ToggleGroup/OToggleGroupItem.vue";
-import analytics from "../../services/product_analytics";
 import { formatSizeFromMB, getImageURL, verifyOrganizationStatus } from "../../utils/zincutils";
 import streamService from "@/services/stream";
 import useStreams from "@/composables/useStreams";
 import EnrichmentSchema from "./EnrichmentSchema.vue";
-import { useReo } from "@/services/reodotdev_analytics";
 import { useToast } from "@/lib/feedback/Toast/useToast";
 import OButton from "@/lib/core/Button/OButton.vue";
 import ORefreshButton from "@/lib/core/RefreshButton/ORefreshButton.vue";
@@ -587,7 +585,6 @@ export default defineComponent({
         oTableRef.value?.restorePage?.(currentPage.value);
       }, 0);
     };
-    const { track } = useReo();
     const { toast } = useToast();
     const columns: OTableColumnDef[] = [
       {
@@ -875,10 +872,8 @@ export default defineComponent({
 
     const showAddUpdateFn = (row: any) => {
       formData.value = row;
-      let action;
       if (!row) {
         isUpdated.value = false;
-        action = "Add Enrichment Table";
         router.push({
           name: "enrichmentTables",
           query: {
@@ -886,13 +881,8 @@ export default defineComponent({
             org_identifier: store.state.selectedOrganization.identifier,
           },
         });
-        track("Button Click", {
-          button: "Add Enrichment Table",
-          page: "Functions",
-        });
       } else {
         isUpdated.value = true;
-        action = "Update Enrichment Table";
         router.push({
           name: "enrichmentTables",
           query: {
@@ -901,18 +891,8 @@ export default defineComponent({
             org_identifier: store.state.selectedOrganization.identifier,
           },
         });
-        track("Button Click", {
-          button: "Update Enrichment Table",
-          page: "Functions",
-        });
       }
       addLookupTable();
-
-      analytics.track("Button Click", {
-        button: action,
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Functions",
-      });
     };
 
     const refreshList = () => {
@@ -949,7 +929,6 @@ export default defineComponent({
         )
         .then((res: any) => {
           if (res.data.code == 200) {
-            analytics.track("stream_deleted", { stream_type: "enrichment_tables", count: 1 });
             toast({
               message: t("toastMessages.functions.deletedSuccessfully", {
                 name: selectedDelete.value.name,
@@ -970,14 +949,6 @@ export default defineComponent({
             });
           }
         });
-
-      analytics.track("Button Click", {
-        button: "Delete Enrichment Table",
-        user_org: store.state.selectedOrganization.identifier,
-        function_name: selectedDelete.value.name,
-        is_ingest_func: selectedDelete.value.ingest,
-        page: "Functions",
-      });
     };
 
     const openBulkDeleteDialog = () => {
@@ -1022,12 +993,6 @@ export default defineComponent({
             }
           });
 
-          if (successfulDeletions > 0) {
-            analytics.track("stream_deleted", {
-              stream_type: "enrichment_tables",
-              count: successfulDeletions,
-            });
-          }
           if (successfulDeletions > 0 && failedDeletions === 0) {
             toast({
               message: t("toastMessages.functions.successfullyDeletedEnrichmentTables", {

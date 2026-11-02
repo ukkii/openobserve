@@ -122,6 +122,10 @@ impl fmt::Display for UserRole {
 }
 
 impl UserRole {
+    pub const fn is_community_assignable(&self) -> bool {
+        matches!(self, Self::Admin | Self::Editor | Self::Viewer | Self::User)
+    }
+
     /// Returns true for any role that represents a service account (human or system).
     pub fn is_service_account(&self) -> bool {
         matches!(self, UserRole::ServiceAccount | UserRole::SreAgent)
@@ -153,7 +157,10 @@ impl FromStr for UserRole {
             "user" | "allowed_user" => Ok(UserRole::User),
             "service_account" => Ok(UserRole::ServiceAccount),
             "sre_agent" => Ok(UserRole::SreAgent),
+            #[cfg(not(feature = "enterprise"))]
             _ => Err(()),
+            #[cfg(feature = "enterprise")]
+            _ => Ok(UserRole::User),
         }
     }
 }
@@ -411,11 +418,20 @@ mod tests {
             );
         }
 
+        #[cfg(not(feature = "enterprise"))]
         #[test]
         fn test_invalid_string_is_rejected() {
             assert_eq!(UserRole::from_str("invalid"), Err(()));
             assert_eq!(UserRole::from_str(""), Err(()));
             assert_eq!(UserRole::from_str("Admin"), Err(()));
+        }
+
+        #[cfg(feature = "enterprise")]
+        #[test]
+        fn test_unknown_string_preserves_enterprise_fallback() {
+            assert_eq!(UserRole::from_str("invalid"), Ok(UserRole::User));
+            assert_eq!(UserRole::from_str(""), Ok(UserRole::User));
+            assert_eq!(UserRole::from_str("Admin"), Ok(UserRole::User));
         }
     }
 

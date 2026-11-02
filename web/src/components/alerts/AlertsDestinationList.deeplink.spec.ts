@@ -50,7 +50,6 @@ vi.mock("@/services/users", () => ({
     getRoles: vi.fn().mockResolvedValue({ data: [] }),
   },
 }));
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 
 const hook = {
   name: "ops_hook",

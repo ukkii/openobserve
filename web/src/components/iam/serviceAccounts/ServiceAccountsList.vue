@@ -583,7 +583,6 @@ import { COL } from "@/lib/core/Table/OTable.types";
 // @ts-ignore
 import usePermissions from "@/composables/iam/usePermissions";
 import service_accounts from "@/services/service_accounts";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { useShortcuts } from "@/lib/vue-shortcut-manager";
 import { focusSearchInput, isInputFocused } from "@/utils/keyboardShortcuts";
@@ -621,7 +620,6 @@ export default defineComponent({
     const store = useStore();
     const router = useRouter();
     const { t } = useI18nTyped();
-    const { track } = useReo();
     const confirmDelete = ref<boolean>(false);
     const selectedUser: any = ref({});
     const orgData: any = ref(store.state.selectedOrganization);
@@ -1003,10 +1001,6 @@ export default defineComponent({
         });
         addUser({ row }, true);
       } else {
-        track("Button Click", {
-          button: "Add Service Account",
-          page: "Service Accounts",
-        });
         addUser({}, false);
         router.push({
           name: "serviceAccounts",

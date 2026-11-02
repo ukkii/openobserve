@@ -212,10 +212,7 @@ pub fn get_role(role: &UserOrgRole) -> UserRole {
 
 #[cfg(not(feature = "enterprise"))]
 pub const fn is_community_role_assignable(role: &UserRole) -> bool {
-    matches!(
-        role,
-        UserRole::Admin | UserRole::Editor | UserRole::Viewer | UserRole::User
-    )
+    role.is_community_assignable()
 }
 
 fn deserialize_trimmed<'de, D>(deserializer: D) -> Result<String, D::Error>

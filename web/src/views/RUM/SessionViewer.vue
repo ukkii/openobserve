@@ -322,7 +322,6 @@ import { MAX_KEY_LENGTH } from "@/utils/rum/productAnalyticsModel";
 import ShareButton from "@/components/common/ShareButton.vue";
 import useRum from "@/composables/rum/useRum";
 import useSessionHeatmap from "@/composables/rum/useSessionHeatmap";
-import analytics from "@/services/product_analytics";
 
 import { formatDate } from "@/utils/date";
 import {
@@ -1392,9 +1391,6 @@ const stopWatchdog = () => {
 // Once per opened session: play/pause toggles and buffering must not re-count it.
 const stopPlayedWatch = watch(playerPlaybackState, (state) => {
   if (state !== "playing") return;
-  analytics.track("session_replay_played", {
-    platform: isMobileReplay.value ? "mobile" : "browser",
-  });
   stopPlayedWatch();
 });
 

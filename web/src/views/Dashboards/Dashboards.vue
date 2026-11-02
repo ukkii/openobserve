@@ -27,8 +27,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     :main-panel="false"
   >
     <template #actions>
-      <!-- new dashboard button -->
-      <OButton variant="primary" size="sm" data-test="dashboard-new" @click="addDashboard">
+      <OButton
+        v-if="canMutate"
+        variant="primary"
+        size="sm"
+        data-test="dashboard-new"
+        @click="addDashboard"
+      >
         {{ t(`dashboard.add`) }}
       </OButton>
     </template>
@@ -60,7 +65,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         <BetaBadge size="xs" class="ms-1.5 max-md:hidden" />
       </OButton>
       <!-- import dashboard button with dropdown -->
-      <ODropdown side="bottom" align="end">
+      <ODropdown v-if="canMutate" side="bottom" align="end">
         <template #trigger>
           <OButton
             variant="outline"
@@ -237,6 +242,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                 <!-- One-click favorite toggle — filled gold star when
                      favorited, neutral outline otherwise. -->
                 <OButton
+                  v-if="canMutate"
                   variant="ghost"
                   size="icon-xs-sq"
                   :icon-left="isFavorite(row.id) ? 'star' : 'star-outline'"
@@ -296,7 +302,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                 <OTruncatedText>{{ row.folder }}</OTruncatedText>
               </button>
             </template>
-            <template #cell-actions="{ row }">
+            <template v-if="canMutate" #cell-actions="{ row }">
               <span class="row-actions flex items-center justify-end gap-0.5">
                 <OButton
                   v-if="row.actions == 'true'"
@@ -396,7 +402,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                       ? t('dashboard.noFavoritesMessage')
                       : undefined
                   "
-                  :hide-action="showFavoritesOnly && !filterQuery"
+                  :hide-action="!canMutate || (showFavoritesOnly && !filterQuery)"
                   :filtered="!!filterQuery"
                   @action="
                     (id) =>
@@ -411,7 +417,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                 />
                 <!-- Gated on the URL folder — correct on FIRST render, unlike the async activeFolderId. -->
                 <TemplateSuggestionCards
-                  v-if="($route.query.folder ?? 'default') === 'default'"
+                  v-if="canMutate && ($route.query.folder ?? 'default') === 'default'"
                   class="w-full max-w-3xl"
                   :active-folder-id="
                     showFavoritesOnly ? '__favorites__' : (activeFolderId ?? 'default')
@@ -434,6 +440,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                 <OTooltip :content="t('dashboard.playlist.actionTooltip')" />
               </OButton>
               <OButton
+                v-if="canMutate"
                 variant="outline"
                 size="sm"
                 data-test="dashboard-list-move-across-folders-btn"
@@ -452,6 +459,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                 {{ t("common.export") }}
               </OButton>
               <OButton
+                v-if="canMutate"
                 variant="outline-destructive"
                 size="sm"
                 icon-left="delete"
@@ -632,14 +640,13 @@ import { debounce } from "lodash-es";
 import { convertDashboardSchemaVersion } from "@/utils/dashboard/convertDashboardSchemaVersion";
 import { useLoading } from "@/composables/useLoading";
 import { useListViewState } from "@/composables/useListViewState";
-import { useReo } from "@/services/reodotdev_analytics";
+import { useBuiltInRole } from "@/composables/useBuiltInRole";
 import { useAiDashboardEvents } from "@/composables/useAiDashboardEvents";
 import type { AiDashboardEvent } from "@/composables/useAiDashboardEvents";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { useShortcuts } from "@/lib/vue-shortcut-manager";
 import { focusSearchInput, isInputFocused } from "@/utils/keyboardShortcuts";
 import { useHomeDashboard } from "@/composables/useHomeDashboard";
-import analytics from "@/services/product_analytics";
 import { useFavoriteDashboards, FAVORITES_FOLDER_ID } from "@/composables/useFavoriteDashboards";
 import OTruncatedText from "@/lib/core/Typography/OTruncatedText.vue";
 import PlaylistDialog from "@/components/dashboards/kiosk/PlaylistDialog.vue";
@@ -725,6 +732,7 @@ export default defineComponent({
   },
   setup() {
     const store = useStore();
+    const { canMutate } = useBuiltInRole();
     const { t } = useI18nTyped();
     const dashboard = ref({});
     const showAddDashboardDialog = ref(false);
@@ -776,7 +784,6 @@ export default defineComponent({
     });
     const folderSearchQuery = ref("");
     const selectedIds = ref<string[]>([]);
-    const { track } = useReo();
 
     // URL-synced so returning from a dashboard (Back/Update/Cancel) lands on the same page instead of resetting to page 1.
     const currentPage = ref(Number(route.query.page) || 1);
@@ -1210,18 +1217,10 @@ export default defineComponent({
 
     const addDashboard = () => {
       showAddDashboardDialog.value = true;
-      track("Button Click", {
-        button: "Add Dashboard",
-        page: "Dashboards",
-      });
     };
     const addFolder = () => {
       isFolderEditMode.value = false;
       showAddFolderDialog.value = true;
-      track("Button Click", {
-        button: "Add Folder",
-        page: "Dashboards",
-      });
     };
     const importDashboard = () => {
       router.push({
@@ -1288,7 +1287,6 @@ export default defineComponent({
           data,
           folderId || "default",
         );
-        analytics.track("dashboard_created");
 
         // Post-write reload: the duplicate will not appear from a cache hit.
         await getDashboards(true);
@@ -1519,7 +1517,6 @@ export default defineComponent({
               ? selectedDelete.value.folder_id
               : (activeFolderId.value ?? "default"),
           );
-          analytics.track("dashboard_deleted", { count: 1 });
           showPositiveNotification(
             deletedWasHome
               ? t("dashboard.pinnedDeletedPinRemoved")
@@ -1844,9 +1841,7 @@ export default defineComponent({
         // across the per-folder calls.
         const successful = responses.flatMap((r: any) => r?.data?.successful ?? []);
         const unsuccessful = responses.flatMap((r: any) => r?.data?.unsuccessful ?? []);
-        if (successful.length > 0) {
-          analytics.track("dashboard_deleted", { count: successful.length });
-        }
+
         if (responses.some((r: any) => r?.data)) {
           const successCount = successful.length;
           const failCount = unsuccessful.length;
@@ -1943,13 +1938,13 @@ export default defineComponent({
       {
         id: "dashboardsListAdd",
         handler: () => {
-          if (!isInputFocused()) addDashboard();
+          if (canMutate.value && !isInputFocused()) addDashboard();
         },
       },
       {
         id: "dashboardsListImport",
         handler: () => {
-          if (!isInputFocused()) importDashboard();
+          if (canMutate.value && !isInputFocused()) importDashboard();
         },
       },
       {
@@ -1966,6 +1961,7 @@ export default defineComponent({
       },
     ]);
     return {
+      canMutate,
       t,
       oTableRef,
       selectedDelete,

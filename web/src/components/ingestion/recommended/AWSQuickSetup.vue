@@ -342,7 +342,6 @@ import OTooltip from "@/lib/overlay/Tooltip/OTooltip.vue";
 import OTruncatedText from "@/lib/core/Typography/OTruncatedText.vue";
 import OCheckbox from "@/lib/forms/Checkbox/OCheckbox.vue";
 import OSeparator from "@/lib/core/Separator/OSeparator.vue";
-import analytics from "@/services/product_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { copyToClipboard } from "@/utils/clipboard";
 import { maskSecret } from "@/composables/useCredentialSnippet";
@@ -520,11 +519,6 @@ export default defineComponent({
       }
 
       window.open(url, "_blank", "noopener,noreferrer");
-      analytics.track("AWS Complete Integration Started", {
-        mode: "single",
-        region: selectedRegion.value,
-        services: enabledServices.value,
-      });
       toast({
         variant: "info",
         message: t("toastMessages.recommended.openingAwsConsoleToDeployComplete"),
@@ -536,14 +530,6 @@ export default defineComponent({
       const consoleUrl = `https://console.aws.amazon.com/cloudformation/home?region=${selectedRegion.value}#/stacksets/create`;
       window.open(consoleUrl, "_blank", "noopener,noreferrer");
       showParamHelper.value = true;
-
-      analytics.track("AWS StackSet Integration Started", {
-        mode: "stackset",
-        model: stackSetModel.value,
-        admin_region: selectedRegion.value,
-        target_regions: targetRegions.value,
-        services: enabledServices.value,
-      });
 
       toast({
         variant: "info",

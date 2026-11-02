@@ -161,8 +161,6 @@ vi.mock("@/composables/useStreamingSearch", () => ({
   }),
 }));
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-
 vi.mock("@/utils/queryHistory/routes", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/utils/queryHistory/routes")>()),
   takeRecentLanding: mockTakeLanding,

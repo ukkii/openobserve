@@ -1720,6 +1720,8 @@ pub struct Auth {
     pub google_client_secret: String,
     #[env_config(name = "ZO_GOOGLE_REDIRECT_URL", default = "")]
     pub google_redirect_url: String,
+    #[env_config(name = "ZO_GOOGLE_LOGIN_RPM", default = 60)]
+    pub google_login_rpm: u32,
     #[env_config(name = "ZO_CLI_USER_COOKIE")]
     pub cli_user_cookie: String,
     #[env_config(name = "ZO_COOKIE_MAX_AGE", default = 2592000)] // seconds, 30 days

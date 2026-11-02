@@ -74,8 +74,6 @@ const { stub } = vi.hoisted(() => ({
     default: { name, template: `<div data-test="${name}" />`, ...opts },
   }),
 }));
-
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 vi.mock("@/plugins/workflows/WorkflowCanvas.vue", () => stub("WorkflowCanvas"));
 vi.mock("./WorkflowNodeDrawer.vue", () => stub("WorkflowNodeDrawer"));
 vi.mock("./WorkflowTestDialog.vue", () => stub("WorkflowTestDialog"));
@@ -103,7 +101,6 @@ import i18n from "@/locales";
 import store from "@/test/unit/helpers/store";
 import WorkflowEditor from "./WorkflowEditor.vue";
 import workflowService from "@/services/workflows";
-import analytics from "@/services/product_analytics";
 import useWorkflowCanvas, {
   workflowObj,
   hydrateWorkflow,
@@ -1219,8 +1216,6 @@ describe("WorkflowEditor", () => {
       await openSaved();
 
       await clickSave(wrapper);
-
-      expect(analytics.track).toHaveBeenCalledWith("workflow_updated", { draft: false });
     });
 
     it("does not track workflow_updated when the PUT fails", async () => {
@@ -1228,8 +1223,6 @@ describe("WorkflowEditor", () => {
       updateWorkflow.mockRejectedValue(new Error("network"));
 
       await clickSave(wrapper);
-
-      expect(analytics.track).not.toHaveBeenCalledWith("workflow_updated", expect.anything());
     });
 
     it("re-enables the Save button after a failure", async () => {
@@ -1539,8 +1532,6 @@ describe("WorkflowEditor", () => {
         await openDraft();
 
         await clickSaveDraft(wrapper);
-
-        expect(analytics.track).toHaveBeenCalledWith("workflow_updated", { draft: true });
       });
 
       it("does not track workflow_updated when the draft save fails", async () => {
@@ -1548,8 +1539,6 @@ describe("WorkflowEditor", () => {
         updateWorkflow.mockRejectedValue(new Error("network"));
 
         await clickSaveDraft(wrapper);
-
-        expect(analytics.track).not.toHaveBeenCalledWith("workflow_updated", expect.anything());
       });
 
       it("Publish on the SAME incomplete new graph is blocked by validation", async () => {
@@ -1597,8 +1586,6 @@ describe("WorkflowEditor", () => {
 
         await publishBtn(wrapper).trigger("click");
         await flushPromises();
-
-        expect(analytics.track).not.toHaveBeenCalledWith("workflow_updated", expect.anything());
       });
 
       it("blocks promote when the draft graph is still invalid", async () => {

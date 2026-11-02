@@ -55,7 +55,6 @@ import OForm from "@/lib/forms/Form/OForm.vue";
 import OFormInput from "@/lib/forms/Input/OFormInput.vue";
 import { computed } from "vue";
 import { useI18nTyped } from "@/types/i18n";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { makeAddGroupSchema, type AddGroupForm } from "./AddGroup.schema";
 
@@ -76,8 +75,6 @@ const props = defineProps({
 });
 
 const emits = defineEmits(["update:open", "added:group"]);
-
-const { track } = useReo();
 
 const addGroupSchema = makeAddGroupSchema(t);
 
@@ -116,10 +113,5 @@ const saveGroup = async (value: AddGroupForm) => {
     }
     console.log(err);
   }
-
-  track("Button Click", {
-    button: "Save Group",
-    page: "Add Group",
-  });
 };
 </script>

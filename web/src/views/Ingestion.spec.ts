@@ -21,7 +21,6 @@ import store from "@/test/unit/helpers/store";
 import router from "@/test/unit/helpers/router";
 import organizationsService from "@/services/organizations";
 import apiKeysService from "@/services/api_keys";
-import analytics from "@/services/product_analytics";
 import { queryClient } from "@/composables/query/queryClient";
 import { createMemoryHistory, createRouter } from "vue-router";
 
@@ -92,12 +91,6 @@ vi.mock("@/services/api_keys", async (importOriginal) => {
     },
   });
 });
-
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
 
 vi.mock("@/utils/zincutils", async (importOriginal) => {
   const actual = await importOriginal();
@@ -283,11 +276,6 @@ describe("Ingestion", () => {
         message: "RUM Token generated successfully.",
         timeout: 5000,
       });
-      expect(analytics.track).toHaveBeenCalledWith("Button Click", {
-        button: "Generate RUM Token",
-        user_org: "default",
-        page: "Ingestion",
-      });
     });
 
     it("should handle error when generating RUM token (non-403 error)", async () => {
@@ -387,11 +375,6 @@ describe("Ingestion", () => {
         variant: "success",
         message: "RUM Token updated successfully.",
         timeout: 5000,
-      });
-      expect(analytics.track).toHaveBeenCalledWith("Button Click", {
-        button: "Update RUM Token",
-        user_org: "default",
-        page: "Ingestion",
       });
     });
 
@@ -873,11 +856,6 @@ describe("Ingestion", () => {
         message: "Token reset successfully.",
         timeout: 5000,
       });
-      expect(analytics.track).toHaveBeenCalledWith("Button Click", {
-        button: "Update Passcode",
-        user_org: "default",
-        page: "Ingestion",
-      });
     });
 
     it("should handle empty token response when updating passcode", async () => {
@@ -1290,12 +1268,6 @@ describe("Ingestion", () => {
       });
 
       await wrapper.vm.generateRUMToken();
-
-      expect(analytics.track).toHaveBeenCalledWith("Button Click", {
-        button: "Generate RUM Token",
-        user_org: "test-org",
-        page: "Ingestion",
-      });
     });
 
     it("should handle copyToClipboardFn with different route name", async () => {
@@ -1315,13 +1287,6 @@ describe("Ingestion", () => {
 
       await wrapper.vm.copyToClipboardFn(mockContent);
       await flushPromises();
-
-      expect(analytics.track).toHaveBeenCalledWith("Button Click", {
-        button: "Copy to Clipboard",
-        ingestion: "custom",
-        user_org: "default",
-        page: "Ingestion",
-      });
     });
   });
   describe("Global search over AWS integrations", () => {
