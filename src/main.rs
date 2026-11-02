@@ -21,7 +21,7 @@
 use std::net::SocketAddr;
 use std::time::{Duration, SystemTime};
 
-use common::{infra::cluster, meta};
+use common::infra::cluster;
 use config::{
     META_ORG_ID, get_config,
     meta::triggers::{Trigger, TriggerModule, TriggerStatus},
@@ -328,14 +328,6 @@ async fn run() -> Result<(), anyhow::Error> {
         .await
         .expect("Deferred jobs failed to init");
 
-    if cfg.common.telemetry_enabled {
-        tokio::task::spawn(async move {
-            meta::telemetry::Telemetry::new()
-                .send_track_event("OpenObserve - Starting server", None, true, false)
-                .await;
-        });
-    }
-
     // let node schedulable
     let mut start_ok = false;
     for _ in 0..10 {
@@ -444,13 +436,6 @@ async fn run() -> Result<(), anyhow::Error> {
     job_stopped_rx.await.ok();
     job_rt_handle.join().ok();
     log::info!("backend job stopped");
-
-    // stop telemetry
-    if cfg.common.telemetry_enabled {
-        meta::telemetry::Telemetry::new()
-            .send_track_event("OpenObserve - Server stopped", None, true, true)
-            .await;
-    }
 
     log::info!("server stopped");
 

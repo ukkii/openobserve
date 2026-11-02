@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import { openobserveRum } from "@openobserve/browser-rum";
 import { closeSearchSocket } from "@/composables/useSearchWebSocket";
 import { dismissAll } from "@/lib/feedback/Toast/useToast";
 import { resetAccess } from "@/composables/useAccessStore";
@@ -37,18 +36,13 @@ interface ExpiringStore extends SessionServicesStore {
   dispatch: (type: "logout") => unknown;
 }
 
-/** Stops what outlives a page change: the search socket, AI chat streams, open toasts, access denials and the RUM user. */
-export const stopSessionServices = (store: SessionServicesStore): void => {
+/** Stops services that outlive a page change. */
+export const stopSessionServices = (_store: SessionServicesStore): void => {
   closeSearchSocket();
   // AI chat streams outlive their component by design, so sign-out stops them explicitly.
   window.dispatchEvent(new Event("o2:abort-ai-streams"));
   dismissAll();
   resetAccess();
-  if (store.state.zoConfig?.rum?.enabled) {
-    openobserveRum.stopSessionReplayRecording();
-    openobserveRum.clearUser();
-    openobserveRum.clearAccount();
-  }
 };
 
 /** Stops every "leave site?" prompt for the rest of this page, for a reload the user can no longer stay out of. */

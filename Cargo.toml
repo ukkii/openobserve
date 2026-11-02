@@ -168,7 +168,6 @@ rustls.workspace = true
 rustls-native-certs.workspace = true
 webpki-roots.workspace = true
 sea-orm.workspace = true
-segment.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha256.workspace = true
@@ -561,7 +560,6 @@ sea-orm-migration = { version = "1.1.20", features = [
     "sqlx-sqlite",
     "runtime-tokio-rustls",
 ] }
-segment = "~0.2.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 sha1 = "0.10.6"

@@ -66,12 +66,12 @@ http.workspace = true
 infra.workspace = true
 ingester.workspace = true
 itertools.workspace = true
+jsonwebtoken.workspace = true
 log.workspace = true
 mime.workspace = true
 o2_dex = { workspace = true, optional = true }
 o2_enterprise = { workspace = true, optional = true, default-features = false }
 o2_openfga = { workspace = true, optional = true }
-openobserve-builtins.workspace = true
 openobserve-cipher = { workspace = true, optional = true }
 openobserve-core.workspace = true
 openobserve-synthetics.workspace = true
@@ -88,6 +88,7 @@ search_service.workspace = true
 sea-orm.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 stream.workspace = true
 svix-ksuid.workspace = true
 time.workspace = true

@@ -26,9 +26,6 @@ import "./styles/rtl.css";
 // applied to v-html-highlighted log output across logs/traces/RUM. Loaded once
 // here instead of re-@imported inside each consumer's <style> block.
 import "./assets/styles/log-highlighting.css";
-import config from "./aws-exports";
-
-import { useReo } from "./services/reodotdev_analytics";
 import { contextRegistry, createDefaultContextProvider } from "./composables/contextProviders";
 import { buildVersionChecker, isChunkLoadError } from "./utils/buildVersionChecker";
 import { queryClient, setMutationNotifier } from "./composables/query/queryClient";
@@ -64,17 +61,13 @@ setMutationNotifier((variant, message) => toast({ variant, message }));
 const defaultProvider = createDefaultContextProvider(router, store);
 contextRegistry.register("default", defaultProvider);
 
-const { reoInit } = useReo();
-
-reoInit();
-
 // app.use(SearchPlugin);
 
 // Unauthenticated bootstrap payload: only what the login page needs. The full
 // configuration is fetched authenticated (per org) once the user is signed in.
 interface ConfigResponse {
   data?: {
-    telemetry_enabled?: boolean;
+    google_login_enabled?: boolean;
     build_type?: string;
     commit_hash?: string;
   };
@@ -94,8 +87,6 @@ const getConfig = async () => {
     if (!isFullConfigLoaded(store.state.zoConfig)) {
       store.dispatch("setConfig", res.data);
     }
-    config.enableAnalytics = res.data.telemetry_enabled?.toString() ?? "false";
-
     // Store initial commit hash for version checking
     if (res.data.commit_hash) {
       buildVersionChecker.setInitialVersion(res.data.commit_hash);

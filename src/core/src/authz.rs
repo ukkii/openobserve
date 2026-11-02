@@ -566,11 +566,46 @@ pub async fn check_permissions(
 #[cfg(not(feature = "enterprise"))]
 pub async fn check_permissions(
     _user_id: &str,
-    _auth_info: AuthExtractor,
-    _role: UserRole,
+    auth_info: AuthExtractor,
+    role: UserRole,
     _is_external: bool,
 ) -> bool {
-    true
+    role != UserRole::Viewer || viewer_request_allowed(&auth_info.method, &auth_info.o2_type)
+}
+
+#[cfg(not(feature = "enterprise"))]
+fn viewer_request_allowed(method: &str, path: &str) -> bool {
+    if matches!(method, "GET" | "HEAD") {
+        return true;
+    }
+    if method != "POST" {
+        return false;
+    }
+
+    let path = path.trim_end_matches('/');
+    [
+        "/_search",
+        "/_search_partition",
+        "/_search_multi",
+        "/_search_multi_stream",
+        "/_search_partition_multi",
+        "/_search_stream",
+        "/_values_stream",
+        "/result_schema",
+        "/profiles/series",
+        "/profiles/merge",
+        "/profiles/diff",
+        "/prometheus/api/v1/query",
+        "/prometheus/api/v1/query_range",
+        "/prometheus/api/v1/query_exemplars",
+        "/prometheus/api/v1/series",
+        "/prometheus/api/v1/labels",
+        "/prometheus/api/v1/format_query",
+        "/prometheus/api/v1/parse_tree",
+    ]
+    .iter()
+    .any(|suffix| path.ends_with(suffix))
+        || path.split('/').next_back() == Some("_around")
 }
 
 pub async fn list_objects_for_user(
@@ -1345,6 +1380,22 @@ mod tests {
         ] {
             assert!(!text.contains(needle), "{file} uses the untyped resolver");
         }
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[test]
+    fn viewer_allows_reads_and_only_explicit_query_posts() {
+        assert!(viewer_request_allowed("GET", "default/streams"));
+        assert!(viewer_request_allowed("HEAD", "default/health"));
+        assert!(viewer_request_allowed("POST", "default/_search"));
+        assert!(viewer_request_allowed(
+            "POST",
+            "default/prometheus/api/v1/query_range"
+        ));
+        assert!(!viewer_request_allowed("POST", "default/streams"));
+        assert!(!viewer_request_allowed("POST", "default/_bulk"));
+        assert!(!viewer_request_allowed("PUT", "default/users/me"));
+        assert!(!viewer_request_allowed("DELETE", "default/streams/app"));
     }
 
     #[cfg(feature = "enterprise")]

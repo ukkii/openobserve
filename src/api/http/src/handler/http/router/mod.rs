@@ -31,10 +31,10 @@ use openobserve_api_management::request::org_domains;
 #[cfg(feature = "cpu-profiling")]
 use openobserve_api_management::request::profiling;
 use openobserve_api_management::request::{
-    alerts, announcements, authz, dashboards, db_monitoring, downtimes, folders, ingest_rejections,
-    kv, metrics_usage, model_pricing, organization, public_dashboards, query_history,
-    rum_analytics, service_accounts, short_url, slack, slos, sourcemaps, status, status_pages,
-    stream, synthetics, users,
+    alerts, announcements, authz, dashboards, db_monitoring, downtimes, folders, google_auth,
+    ingest_rejections, kv, metrics_usage, model_pricing, organization, public_dashboards,
+    query_history, rum_analytics, service_accounts, short_url, slack, slos, sourcemaps, status,
+    status_pages, stream, synthetics, users,
 };
 #[cfg(feature = "cloud")]
 use openobserve_api_management::request::{cloud, organization::billing_group};
@@ -1101,6 +1101,8 @@ pub fn config_routes() -> Router {
         .route_layer(middleware::from_fn(password_policy_middleware))
         .route_layer(middleware::from_fn(auth_middleware))
         .route("/", get(status::zo_config_bootstrap))
+        .route("/google_login", get(google_auth::login))
+        .route("/google_callback", get(google_auth::callback))
         .route("/logout", get(status::logout))
 }
 
@@ -1111,6 +1113,8 @@ pub fn config_routes() -> Router {
         .route_layer(middleware::from_fn(password_policy_middleware))
         .route_layer(middleware::from_fn(auth_middleware))
         .route("/", get(status::zo_config_bootstrap))
+        .route("/google_login", get(google_auth::login))
+        .route("/google_callback", get(google_auth::callback))
         .route("/logout", get(status::logout))
         .route("/redirect", get(status::redirect))
         .route("/dex_login", get(status::dex_login))
@@ -1343,7 +1347,6 @@ pub fn service_routes() -> Router {
         .route("/{org_id}/llm/models", get(model_pricing::list).post(model_pricing::create))
         // NOTE: named routes MUST be registered before {model_id} or they match as a model ID
         .route("/{org_id}/llm/models/built-in", get(model_pricing::get_built_in))
-        .route("/{org_id}/llm/models/refresh-built-in", post(model_pricing::refresh_built_in))
         .route("/{org_id}/llm/models/test", post(model_pricing::test_model_match))
         .route("/{org_id}/llm/models/{model_id}", get(model_pricing::get).put(model_pricing::update).delete(model_pricing::delete))
 
@@ -3846,9 +3849,9 @@ mod tests {
                 "custom_logo_img",
                 "custom_logo_text",
                 "editor_suggest_mode",
+                "google_login_enabled",
                 "native_login_enabled",
                 "sso_enabled",
-                "telemetry_enabled",
             ],
             "unauthenticated /config must expose exactly the login-page bootstrap fields"
         );

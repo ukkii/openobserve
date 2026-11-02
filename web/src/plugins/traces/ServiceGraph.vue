@@ -1305,7 +1305,7 @@ export default defineComponent({
         tooltipEl.style.padding = "0.5625rem 0.8125rem";
         tooltipEl.style.fontSize = "0.75rem";
         tooltipEl.style.lineHeight = "1.5";
-        tooltipEl.style.fontFamily = '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+        tooltipEl.style.fontFamily = "var(--font-sans)";
         tooltipEl.style.letterSpacing = "0.01em";
         tooltipEl.style.whiteSpace = "nowrap";
         tooltipEl.style.color = isDark.value ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.82)";

@@ -447,8 +447,6 @@ pub struct BuiltInModelPricingEntry {
 #[derive(serde::Serialize)]
 pub struct BuiltInModelPricingResponse {
     pub models: Vec<BuiltInModelPricingEntry>,
-    pub source_url: String,
-    pub last_updated: i64,
 }
 
 /// GetBuiltInModelPricing
@@ -494,8 +492,6 @@ pub async fn get_built_in(
         return MetaHttpResponse::forbidden("Unauthorized Access");
     }
 
-    let source_url = config::get_config().common.model_pricing_source_url.clone();
-
     // Read from DB (synced by background job) instead of making a live HTTP call.
     let all_built_in = match model_pricing::list(BUILT_IN_ORG).await {
         Ok(items) => items,
@@ -524,12 +520,7 @@ pub async fn get_built_in(
         })
         .collect();
 
-    let last_updated = openobserve_builtins::model_pricing::last_sync_timestamp();
-    MetaHttpResponse::json(BuiltInModelPricingResponse {
-        models,
-        source_url,
-        last_updated,
-    })
+    MetaHttpResponse::json(BuiltInModelPricingResponse { models })
 }
 
 /// Map errors from `model_pricing::set` to appropriate HTTP responses.
@@ -540,58 +531,6 @@ fn map_set_error(e: anyhow::Error) -> Response {
         MetaHttpResponse::bad_request(msg)
     } else {
         MetaHttpResponse::internal_error(e)
-    }
-}
-
-/// RefreshBuiltInModelPricing
-///
-/// #{"ratelimit_module":"ModelPricing", "ratelimit_module_operation":"create"}#
-#[utoipa::path(
-    post,
-    path = "/{org_id}/llm/models/refresh-built-in",
-    context_path = "/api",
-    tag = "LLM",
-    operation_id = "RefreshBuiltInModelPricing",
-    summary = "Refresh built-in model pricing from upstream source",
-    description = "Triggers an immediate sync of built-in model pricing definitions from the configured GitHub source.",
-    security(("Authorization" = [])),
-    params(
-        ("org_id" = String, Path, description = "Organization name"),
-    ),
-    responses(
-        (status = 200, description = "Success"),
-        (status = 500, description = "Internal server error"),
-    ),
-)]
-pub async fn refresh_built_in(
-    Path(_org_id): Path<String>,
-    #[cfg(feature = "enterprise")] Headers(user_email): Headers<UserEmail>,
-) -> Response {
-    #[cfg(feature = "enterprise")]
-    if !check_permissions(
-        &_org_id,
-        &_org_id,
-        &user_email.user_id,
-        "model_pricing",
-        "PUT",
-        None,
-        true,
-        false,
-        false,
-    )
-    .await
-    {
-        return MetaHttpResponse::forbidden("Unauthorized Access");
-    }
-
-    let last_sync = openobserve_builtins::model_pricing::last_sync_timestamp();
-    if last_sync > 0 && chrono::Utc::now().timestamp() - last_sync < 60 {
-        return MetaHttpResponse::too_many_requests("Rate limit: wait 60s between refreshes");
-    }
-
-    match openobserve_builtins::model_pricing::sync_built_in_from_github(true).await {
-        Ok(result) => MetaHttpResponse::json(result),
-        Err(e) => MetaHttpResponse::internal_error(e),
     }
 }
 

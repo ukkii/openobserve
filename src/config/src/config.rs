@@ -1714,6 +1714,12 @@ pub struct Auth {
     pub root_user_password: String,
     #[env_config(name = "ZO_ROOT_USER_TOKEN")]
     pub root_user_token: String,
+    #[env_config(name = "ZO_GOOGLE_CLIENT_ID", default = "")]
+    pub google_client_id: String,
+    #[env_config(name = "ZO_GOOGLE_CLIENT_SECRET", default = "")]
+    pub google_client_secret: String,
+    #[env_config(name = "ZO_GOOGLE_REDIRECT_URL", default = "")]
+    pub google_redirect_url: String,
     #[env_config(name = "ZO_CLI_USER_COOKIE")]
     pub cli_user_cookie: String,
     #[env_config(name = "ZO_COOKIE_MAX_AGE", default = 2592000)] // seconds, 30 days
@@ -2354,20 +2360,6 @@ pub struct Common {
         default = "Basic cm9vdEBleGFtcGxlLmNvbTpDb21wbGV4cGFzcyMxMjM="
     )]
     pub tracing_header_value: String,
-    #[env_config(
-        name = "ZO_TRACING_EXTRA_ENVS",
-        default = "",
-        help = "Comma-separated list of environment variable names to include as resource attributes in traces."
-    )]
-    pub tracing_extra_envs: String,
-    #[env_config(name = "ZO_TELEMETRY", default = true)]
-    pub telemetry_enabled: bool,
-    #[env_config(name = "ZO_TELEMETRY_URL", default = "https://e1.zinclabs.dev")]
-    pub telemetry_url: String,
-    #[env_config(name = "ZO_TELEMETRY_HEARTBEAT", default = 1800)] // seconds
-    pub telemetry_heartbeat: i64,
-    #[env_config(name = "ZO_KEYEVENT_TELEMETRY_URL", default = "")]
-    pub keyevent_telemetry_url: String,
     #[env_config(name = "ZO_PROMETHEUS_ENABLED", default = true)]
     pub prometheus_enabled: bool,
     #[env_config(name = "ZO_PRINT_KEY_CONFIG", default = false)]
@@ -2378,28 +2370,6 @@ pub struct Common {
     pub print_key_sql: bool,
     #[env_config(name = "ZO_PRINT_PLAN_SINGLE_LINE", default = true)]
     pub print_plan_single_line: bool,
-    #[env_config(name = "ZO_USAGE_REPORTING_ENABLED", default = true)]
-    pub usage_reporting_enabled: bool,
-    #[env_config(
-        name = "ZO_USAGE_REPORTING_MODE",
-        default = "local",
-        help = "possible values - 'local', 'remote', 'both'"
-    )] // local, remote, both
-    pub usage_reporting_mode: String,
-    #[env_config(
-        name = "ZO_USAGE_REPORTING_URL",
-        default = "http://localhost:5080/api/_meta/usage/_json",
-        help = "Where remote usage reporting posts when enabled."
-    )]
-    pub usage_reporting_url: String,
-    #[env_config(name = "ZO_USAGE_REPORTING_CREDS", default = "")]
-    pub usage_reporting_creds: String,
-    #[env_config(
-        name = "ZO_USAGE_REPORTING_ERRORS_ENABLED",
-        default = true,
-        help = "Report error data. Writes the _meta errors stream and fills the last-error panel on the pipelines page. Error text can echo the record that failed."
-    )]
-    pub usage_reporting_errors_enabled: bool,
     #[env_config(name = "ZO_USAGE_BATCH_SIZE", default = 2000)]
     pub usage_batch_size: usize,
     #[env_config(
@@ -2418,30 +2388,6 @@ pub struct Common {
     // MMDB
     #[env_config(name = "ZO_MMDB_DATA_DIR")] // ./data/openobserve/mmdb/
     pub mmdb_data_dir: String,
-    #[env_config(name = "ZO_MMDB_DISABLE_DOWNLOAD", default = false)]
-    pub mmdb_disable_download: bool,
-    #[env_config(name = "ZO_MMDB_UPDATE_DURATION_DAYS", default = 30)] // default 30 days
-    pub mmdb_update_duration_days: u64,
-    #[env_config(
-        name = "ZO_MMDB_GEOLITE_CITYDB_URL",
-        default = "https://geoip.zinclabs.dev/GeoLite2-City.mmdb"
-    )]
-    pub mmdb_geolite_citydb_url: String,
-    #[env_config(
-        name = "ZO_MMDB_GEOLITE_ASNDB_URL",
-        default = "https://geoip.zinclabs.dev/GeoLite2-ASN.mmdb"
-    )]
-    pub mmdb_geolite_asndb_url: String,
-    #[env_config(
-        name = "ZO_MMDB_GEOLITE_CITYDB_SHA256_URL",
-        default = "https://geoip.zinclabs.dev/GeoLite2-City.sha256"
-    )]
-    pub mmdb_geolite_citydb_sha256_url: String,
-    #[env_config(
-        name = "ZO_MMDB_GEOLITE_ASNDB_SHA256_URL",
-        default = "https://geoip.zinclabs.dev/GeoLite2-ASN.sha256"
-    )]
-    pub mmdb_geolite_asndb_sha256_url: String,
     #[env_config(name = "ZO_DEFAULT_SCRAPE_INTERVAL", default = 15)]
     // Default scrape_interval value 15s
     pub default_scrape_interval: u32,
@@ -2570,21 +2516,9 @@ pub struct Common {
     #[env_config(
         name = "ZO_MODEL_PRICING_ENABLED",
         default = true,
-        help = "Enable user-defined model pricing. When true, uses DB pricing definitions and syncs from GitHub. When false, no cost is computed for spans that do not report one."
+        help = "Enable model pricing stored in the database. When false, no cost is computed for spans that do not report one."
     )]
     pub model_pricing_enabled: bool,
-    #[env_config(
-        name = "ZO_MODEL_PRICING_SOURCE_URL",
-        default = "https://raw.githubusercontent.com/openobserve/sdr_patterns/refs/heads/main/llm_pricing.json",
-        help = "URL for built-in LLM model pricing JSON source."
-    )]
-    pub model_pricing_source_url: String,
-    #[env_config(
-        name = "ZO_MODEL_PRICING_SYNC_INTERVAL_SECS",
-        default = 21600,
-        help = "Interval in seconds for syncing built-in model pricing from GitHub. Default: 6 hours (21600)."
-    )]
-    pub model_pricing_sync_interval_secs: u64,
     #[env_config(name = "ZO_FAKE_ES_VERSION", default = "")]
     pub fake_es_version: String,
     #[env_config(
@@ -4299,13 +4233,6 @@ fn check_common_config(cfg: &mut Config) -> Result<(), anyhow::Error> {
         return Err(anyhow::anyhow!(
             "Either grpc or http url should be set when enabling tracing"
         ));
-    }
-
-    // If tracing_extra_envs is empty, reset to default value
-    if cfg.common.tracing_extra_envs.is_empty() {
-        cfg.common.tracing_extra_envs =
-            "K8S_CLUSTER,K8S_NAMESPACE_NAME,K8S_NODE_NAME,K8S_CONTAINER_NAME,K8S_POD_NAME"
-                .to_string();
     }
 
     // HACK instance_name

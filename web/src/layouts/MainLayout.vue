@@ -42,9 +42,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         <div
           v-if="config.isCloud === 'true'"
           class="bg-button-primary text-button-primary-foreground text-center"
-        >
-          <WebinarBanner variant="header" />
-        </div>
+        ></div>
 
         <!-- Operator-authored announcement bars (enterprise) -->
         <AnnouncementBanner v-if="config.isEnterprise === 'true'" />
@@ -341,12 +339,9 @@ import {
   useFirstDataNotice,
   type OrgStreamList,
 } from "@/composables/firstEvent/useFirstDataNotice";
-import { openobserveRum } from "@openobserve/browser-rum";
-import { initBrowserRum } from "@/utils/rum/initBrowserRum";
 import useSearchWebSocket from "@/composables/useSearchWebSocket";
 import O2AIChat from "@/components/O2AIChat.vue";
 import PaidOverageConsentDialog from "@/components/PaidOverageConsentDialog.vue";
-import WebinarBanner from "@/components/WebinarBanner.vue";
 import AnnouncementBanner from "@/components/announcements/AnnouncementBanner.vue";
 import PasswordExpiryBanner from "@/components/common/PasswordExpiryBanner.vue";
 import LicenseSearchBanner from "@/enterprise/components/billings/LicenseSearchBanner.vue";
@@ -371,7 +366,6 @@ export default defineComponent({
   mixins: [mainLayoutMixin],
   components: {
     AppHeader,
-    WebinarBanner,
     AnnouncementBanner,
     PasswordExpiryBanner,
     LicenseSearchBanner,
@@ -758,12 +752,6 @@ export default defineComponent({
       }
     });
 
-    // Measured rather than assumed. The strip now holds two independent bars
-    // (the cloud webinar promo and any number of operator-authored banners),
-    // each of which wraps its own text, so no fixed value can describe it — the
-    // old `isWebinarBannerVisible` two-value calc only ever fit one bar of one
-    // line. WebinarBanner still dispatches that flag; nothing reads it for
-    // height any more.
     const announcementBarRef = ref<HTMLElement | null>(null);
     let announcementBarObserver: ResizeObserver | null = null;
 
@@ -810,34 +798,6 @@ export default defineComponent({
       },
     );
 
-    // rum.enabled arrives only with the full config, which is fetched after the org is known.
-    watch(
-      [
-        () => store.state.selectedOrganization?.identifier,
-        () => store.state.selectedOrganization?.label,
-        () => store.state.selectedOrganization?.subscription_type,
-        // Login and stored selections carry only the org identity, so read created_at from the org list too.
-        () =>
-          store.state.selectedOrganization?.created_at ??
-          (store.state.organizations ?? []).find(
-            (o: { identifier?: string }) =>
-              o?.identifier === store.state.selectedOrganization?.identifier,
-          )?.created_at,
-        () => store.state.zoConfig?.rum?.enabled,
-      ],
-      ([identifier, name, subscriptionType, createdAt, rumEnabled]) => {
-        if (!identifier || !rumEnabled) return;
-        openobserveRum.setAccount({
-          id: identifier,
-          name,
-          subscription_type: subscriptionType,
-          // Unix microseconds, the same unit as _timestamp.
-          created_at: createdAt || undefined,
-        });
-      },
-      { immediate: true },
-    );
-
     onMounted(async () => {
       filterMenus();
 
@@ -851,10 +811,6 @@ export default defineComponent({
         }
         menuReady.value = true;
         await nextTick();
-        // if rum enabled then setUser to capture session details.
-        if (store.state.zoConfig.rum?.enabled) {
-          setRumUser();
-        }
       }
     });
 
@@ -1069,6 +1025,11 @@ export default defineComponent({
       );
       // Product Analytics reads RUM's data and links to RUM setup; it can also be hidden on its own by name.
       if (disableMenus.has("rum")) disableMenus.add("productAnalytics");
+      if (store.state?.currentuser?.role?.toLowerCase() === "viewer") {
+        ["ingestion", "iam", "settings", "pipelines", "functions"].forEach((name) =>
+          disableMenus.add(name),
+        );
+      }
 
       store.dispatch("setHiddenMenus", disableMenus);
 
@@ -1513,8 +1474,6 @@ export default defineComponent({
             linksList.value = layoutMixin.leftNavigationLinks(linksList, t);
           }
 
-          // Before setConfig, so watchers that react to rum.enabled find the SDK running.
-          initBrowserRum(res.data.rum, store.state.API_ENDPOINT);
           store.dispatch("setConfig", res.data);
           fullConfigOrg = orgIdentifier;
           fullConfigSettled.value = true;
@@ -1522,10 +1481,6 @@ export default defineComponent({
 
           filterMenus();
           menuReady.value = true;
-          // if rum enabled then setUser to capture session details.
-          if (res.data.rum.enabled) {
-            setRumUser();
-          }
           // restricted_routes_on_empty_data arrives only with the full config, so the first navigation could not record isDataIngested
           if (
             res.data.restricted_routes_on_empty_data === true &&
@@ -1558,21 +1513,6 @@ export default defineComponent({
     if (config.isCloud == "true") {
       layoutMixin.getDefaultOrganization(store);
     }
-
-    const setRumUser = () => {
-      if (store.state.zoConfig?.rum?.enabled == true) {
-        const userInfo = store.state.userInfo;
-        // Set user information first
-        openobserveRum.setUser({
-          id: userInfo.email,
-          name: userInfo.given_name + " " + userInfo.family_name,
-          email: userInfo.email,
-        });
-        // Start session replay recording after user is identified
-        // This handles cases where user refreshes the page or accesses app directly
-        openobserveRum.startSessionReplayRecording({ force: true });
-      }
-    };
 
     const prefetch = () => {
       const href = "/web/assets/editor.api.v1.js";
@@ -1796,7 +1736,6 @@ export default defineComponent({
       verifyStreamExist,
       filterMenus,
       getConfig,
-      setRumUser,
       openPredefinedThemes,
       showShortcuts,
       openShortcutsList,

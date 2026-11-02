@@ -16,7 +16,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { getDecodedUserInfo, getPath, mergeRoutes } from "@/utils/zincutils";
 import { gt } from "@/types/i18n";
-import { openobserveRum } from "@openobserve/browser-rum";
 import config from "@/aws-exports";
 
 import userCloudRoutes from "@/enterprise/composables/router";
@@ -147,9 +146,5 @@ export default function (store: any) {
     }
   });
 
-  // Route names keep RUM view names low-cardinality; paths embed entity ids.
-  router.afterEach((to: any, _from: any, failure: any) => {
-    if (!failure && to.name) openobserveRum.setViewName(String(to.name));
-  });
   return router;
 }

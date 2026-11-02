@@ -23,10 +23,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 <script lang="ts">
 import { defineComponent, ref, onMounted, watch, onUnmounted, nextTick } from "vue";
 
-import L from "leaflet";
 import "@/utils/dashboard/leaflet-echarts/index";
 
-// import {tileLayer as LtileLayer } from 'leaflet';
 import "leaflet/dist/leaflet.css";
 import * as echarts from "echarts/core";
 import {
@@ -95,7 +93,7 @@ export default defineComponent({
   setup(props: any) {
     const chartRef: any = ref(null);
     let chart: any;
-    let tiledMap: any;
+    let boundMap: any;
     let appliedView = "";
 
     const getLeaflet = () => chart?.getModel()?.getComponent("lmap")?.getLeaflet();
@@ -137,12 +135,8 @@ export default defineComponent({
 
       const lmap = getLeaflet();
       if (!lmap) return;
-      if (lmap !== tiledMap) {
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        }).addTo(lmap);
-        tiledMap = lmap;
+      if (lmap !== boundMap) {
+        boundMap = lmap;
         appliedView = "";
         bindRecluster(lmap);
       }

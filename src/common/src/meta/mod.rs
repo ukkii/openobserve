@@ -28,6 +28,5 @@ pub mod saved_view;
 pub mod service;
 pub mod service_account;
 pub mod stream;
-pub mod telemetry;
 pub mod traces;
 pub mod user;

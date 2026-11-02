@@ -59,7 +59,6 @@ mod llm_playground_cleanup;
 mod llm_review_reconciliation;
 mod llm_secret_cleanup;
 pub mod metrics;
-mod mmdb_downloader;
 #[cfg(feature = "enterprise")]
 mod oncall_maintenance;
 #[cfg(feature = "enterprise")]
@@ -86,7 +85,6 @@ pub mod slack_hooks;
 mod slo_maintenance;
 mod stats;
 
-use enrichment_data::enrichment_table::geoip::wait_for_initialization;
 use openobserve_core::org_cleanup::{DrainPass, StreamDataCleanup};
 
 // Bounds one drain pass; a capped pass goes again at once without spending an attempt.
@@ -542,13 +540,6 @@ pub async fn init() -> Result<(), anyhow::Error> {
         }
     }
 
-    if !cfg.common.mmdb_disable_download
-        && (LOCAL_NODE.is_ingester() || LOCAL_NODE.is_querier() || LOCAL_NODE.is_scheduler())
-    {
-        // Try to download the mmdb files, if its not disabled.
-        tokio::task::spawn(mmdb_downloader::run());
-    }
-
     // Initialize URL job processor for enrichment tables on ingesters
     // This ensures the stale job recovery task starts even if this ingester
     // never receives a URL enrichment event. Critical for distributed deployments.
@@ -698,19 +689,6 @@ pub async fn init() -> Result<(), anyhow::Error> {
 
     #[cfg(feature = "cpu-profiling")]
     tokio::task::spawn(openobserve_core::self_profiles::run());
-
-    // telemetry run
-    if cfg.common.telemetry_enabled && LOCAL_NODE.is_querier() {
-        spawn_pausable_job!(
-            "telemetry",
-            config::get_config().common.telemetry_heartbeat,
-            {
-                common::meta::telemetry::Telemetry::new()
-                    .heart_beat("OpenObserve - heartbeat", None)
-                    .await;
-            }
-        );
-    }
 
     tokio::task::spawn(usage_reporting::run());
 
@@ -872,30 +850,6 @@ pub async fn init() -> Result<(), anyhow::Error> {
         db::model_pricing::cache()
             .await
             .expect("model pricing cache failed");
-
-        // Sync built-in model pricing from GitHub (initial + periodic)
-        if LOCAL_NODE.is_querier() {
-            tokio::task::spawn(async {
-                if let Err(e) =
-                    openobserve_builtins::model_pricing::sync_built_in_from_github(false).await
-                {
-                    log::error!("[model_pricing] initial built-in sync failed: {e}");
-                }
-            });
-            tokio::task::spawn(async {
-                let interval = std::time::Duration::from_secs(
-                    config::get_config().common.model_pricing_sync_interval_secs,
-                );
-                loop {
-                    tokio::time::sleep(interval).await;
-                    if let Err(e) =
-                        openobserve_builtins::model_pricing::sync_built_in_from_github(false).await
-                    {
-                        log::error!("[model_pricing] periodic built-in sync failed: {e}");
-                    }
-                }
-            });
-        }
     }
 
     // ensure system templates exist in database BEFORE caching
@@ -1748,7 +1702,7 @@ pub async fn init_deferred() -> Result<(), anyhow::Error> {
         .await
         .expect("EnrichmentTables cache failed");
     // pipelines can potentially depend on enrichment tables, so cached afterwards
-    openobserve_core::pipeline::db::cache(wait_for_initialization)
+    openobserve_core::pipeline::db::cache()
         .await
         .expect("Pipeline cache failed");
 

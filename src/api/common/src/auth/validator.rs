@@ -1303,6 +1303,65 @@ async fn session_grants_token(session_id: &str, token: &str) -> bool {
     matches!(db::session::get(session_id).await, Ok(stored) if stored == token)
 }
 
+fn community_user_for_path(db_user: DBUser, path: &str) -> Option<User> {
+    let is_allowed_role = |user: &User| {
+        !matches!(
+            user.role,
+            UserRole::ServiceAccount | UserRole::SreAgent | UserRole::User
+        )
+    };
+    if path.split('/').next_back() == Some("organizations") {
+        let users = db_user
+            .get_all_users()
+            .into_iter()
+            .filter(is_allowed_role)
+            .collect::<Vec<_>>();
+        users
+            .iter()
+            .find(|user| user.org == config::META_ORG_ID)
+            .cloned()
+            .or_else(|| users.into_iter().next())
+    } else {
+        let columns = path.split('/').collect::<Vec<_>>();
+        db_user
+            .get_user(org_from_path(&columns).to_string())
+            .filter(is_allowed_role)
+    }
+}
+
+async fn validate_community_session(
+    req_data: &RequestData,
+    auth_info: &AuthExtractor,
+    path_prefix: &str,
+    email: &str,
+) -> Result<AuthValidationResult, AuthError> {
+    let uri_path = req_data.uri.path();
+    let path = routed_path(uri_path.strip_prefix(path_prefix).unwrap_or(uri_path));
+    let user = db::user::get_user_by_email(email)
+        .await
+        .and_then(|user| community_user_for_path(user, path))
+        .ok_or_else(|| AuthError::Unauthorized("Unauthorized Access".to_string()))?;
+
+    if !check_permissions(
+        &user.email,
+        auth_info.clone(),
+        user.role.clone(),
+        user.is_external,
+    )
+    .await
+    {
+        return Err(AuthError::Forbidden("Unauthorized Access".to_string()));
+    }
+
+    Ok(AuthValidationResult {
+        user_email: user.email,
+        user_role: Some(user.role),
+        is_internal_user: !user.is_external,
+        token_name: None,
+        delegation: None,
+    })
+}
+
 async fn oo_validator_internal(
     req_data: &RequestData,
     auth_info: &AuthExtractor,
@@ -1319,7 +1378,12 @@ async fn oo_validator_internal(
         None => (false, auth_info.auth.clone()),
     };
 
-    if let Some(info) = auth_str.strip_prefix("Basic ").map(str::trim) {
+    if let Some(email) = is_from_session
+        .then(|| auth_str.strip_prefix("Community ").map(str::trim))
+        .flatten()
+    {
+        validate_community_session(req_data, auth_info, path_prefix, email).await
+    } else if let Some(info) = auth_str.strip_prefix("Basic ").map(str::trim) {
         let decoded = match base64::decode(info) {
             Ok(val) => val,
             Err(_) => return Err(AuthError::Unauthorized("Unauthorized Access".to_string())),
@@ -3025,6 +3089,46 @@ CN5lTowpVXP2OIiiNTGa75Fj
         assert!(!is_org_agnostic_path("license/refresh/now"));
         assert!(!is_org_agnostic_path("license/refresh/"));
         assert!(!is_org_agnostic_path("acme/license/refresh"));
+    }
+
+    #[test]
+    fn community_session_resolves_org_lists_and_rejects_login_only_roles() {
+        let db_user = DBUser {
+            email: "viewer@example.com".to_string(),
+            first_name: "View".to_string(),
+            last_name: "Only".to_string(),
+            password: String::new(),
+            salt: String::new(),
+            organizations: vec![
+                config::meta::user::UserOrg {
+                    name: "login-only".to_string(),
+                    org_name: "Login only".to_string(),
+                    token: String::new(),
+                    rum_token: None,
+                    role: UserRole::User,
+                },
+                config::meta::user::UserOrg {
+                    name: "acme".to_string(),
+                    org_name: "Acme".to_string(),
+                    token: String::new(),
+                    rum_token: None,
+                    role: UserRole::Viewer,
+                },
+            ],
+            is_external: false,
+            password_ext: None,
+        };
+
+        let org_list_user = community_user_for_path(db_user.clone(), "organizations").unwrap();
+        assert_eq!(org_list_user.org, "acme");
+        assert_eq!(org_list_user.role, UserRole::Viewer);
+        assert!(community_user_for_path(db_user.clone(), "login-only/streams").is_none());
+        assert_eq!(
+            community_user_for_path(db_user, "acme/streams")
+                .unwrap()
+                .role,
+            UserRole::Viewer
+        );
     }
 
     #[tokio::test]

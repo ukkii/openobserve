@@ -27,8 +27,7 @@
  */
 
 /** Compile-time fallbacks — used only when there is no DOM (SSR, jsdom). */
-const FALLBACK_SANS =
-  "'Geist', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif";
+const FALLBACK_SANS = "NotoSans, Lucida Grande, Lucida Sans Unicode, sans-serif";
 const FALLBACK_MONO = "'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace";
 
 let sansCache: string | undefined;

@@ -15,7 +15,6 @@
 
 use std::{
     collections::HashMap,
-    future::Future,
     sync::{Arc, LazyLock, Mutex},
     time::{Duration, Instant},
 };
@@ -303,11 +302,7 @@ pub async fn delete(pipeline_id: &str) -> Result<(), PipelineError> {
 }
 
 /// Preload all enabled pipelines into the cache at startup.
-pub async fn cache<W, WFut>(wait_for_mmdb: W) -> Result<(), anyhow::Error>
-where
-    W: FnOnce() -> WFut,
-    WFut: Future<Output = ()>,
-{
+pub async fn cache() -> Result<(), anyhow::Error> {
     // The id->org map is needed on every node type (including routers) for cross-org
     // IDOR checks in HTTP handlers, so populate it before the heavy-cache early-return.
     cache_id_to_org().await?;
@@ -316,15 +311,6 @@ where
         return Ok(());
     }
     let pipelines = list().await?;
-    if pipelines
-        .iter()
-        .any(|pl| pl.enabled && pl.num_of_func() > 0)
-        && !config::get_config().common.mmdb_disable_download
-    {
-        log::info!("[PIPELINE:CACHE] waiting mmdb data to be available");
-        wait_for_mmdb().await;
-        log::info!("[PIPELINE:CACHE] done waiting");
-    }
     let mut pipeline_stream_mapping_cache = PIPELINE_STREAM_MAPPING.write().await;
     let mut stream_exec_pl = STREAM_EXECUTABLE_PIPELINES.write().await;
     let mut scheduled_pipelines_cache = SCHEDULED_PIPELINES.write().await;

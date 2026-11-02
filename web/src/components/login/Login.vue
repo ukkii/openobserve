@@ -102,6 +102,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
           {{ t("login.login") }}
         </h1>
 
+        <div v-if="showGoogleLogin" class="mb-3 flex justify-center">
+          <OButton
+            data-test="google-login-btn"
+            variant="primary"
+            size="sm-action"
+            style="width: 25rem"
+            @click="loginWithGoogle"
+          >
+            {{ t("login.loginWithGoogle") }}
+          </OButton>
+        </div>
+
         <div v-if="showSSO" class="flex justify-center">
           <OButton
             data-test="sso-login-btn"
@@ -234,7 +246,6 @@ import OButton from "@/lib/core/Button/OButton.vue";
 import OBanner from "@/lib/feedback/Banner/OBanner.vue";
 import OForm from "@/lib/forms/Form/OForm.vue";
 import OFormInput from "@/lib/forms/Input/OFormInput.vue";
-import { openobserveRum } from "@openobserve/browser-rum";
 import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { makeLoginSchema, loginDefaults, type LoginForm } from "./Login.schema";
@@ -313,6 +324,13 @@ export default defineComponent({
       return store.state.zoConfig.native_login_enabled;
     });
 
+    const showGoogleLogin = computed(() => store.state.zoConfig.google_login_enabled === true);
+
+    const loginWithGoogle = () => {
+      const endpoint = String(store.state.API_ENDPOINT || "").replace(/\/$/, "");
+      window.location.href = `${endpoint}/config/google_login`;
+    };
+
     // Dex opens on its Create account tab when the request carries screen_hint=signup.
     const withSignupHint = (url: string): string => {
       if (router.currentRoute.value.query.mode !== "signup") return url;
@@ -388,17 +406,6 @@ export default defineComponent({
 
                 useLocalCurrentUser(JSON.stringify(userInfo));
                 store.dispatch("setCurrentUser", userInfo);
-
-                if (store.state.zoConfig?.rum?.enabled) {
-                  // Set user information first
-                  openobserveRum.setUser({
-                    id: userInfo.email,
-                    name: userInfo.given_name + " " + userInfo.family_name,
-                    email: userInfo.email,
-                  });
-                  // Now start session replay recording after user is identified
-                  openobserveRum.startSessionReplayRecording({ force: true });
-                }
 
                 //check for redirect URI and redirect user to that page
                 const redirectURI = window.sessionStorage.getItem("redirectURI");
@@ -540,6 +547,8 @@ export default defineComponent({
       toggleInternalLogin,
       showSSO,
       showInternalLogin,
+      showGoogleLogin,
+      loginWithGoogle,
       loginWithSSo,
       withSignupHint,
       config,

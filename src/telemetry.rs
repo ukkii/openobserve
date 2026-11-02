@@ -324,7 +324,6 @@ pub fn enable_tracing() -> Result<opentelemetry_sdk::trace::SdkTracerProvider, a
                         .with_http()
                         .with_http_client(
                             reqwest::Client::builder()
-                        .danger_accept_invalid_certs(true)
                         .timeout(Duration::from_secs(10))           // Overall request timeout
                         .connect_timeout(Duration::from_secs(5))    // Connection establishment timeout
                         .pool_idle_timeout(Duration::from_secs(60)) // How long to keep idle connections
@@ -398,7 +397,6 @@ pub fn enable_tracing() -> Result<opentelemetry_sdk::trace::SdkTracerProvider, a
                     .with_http()
                     .with_http_client(
                         reqwest::Client::builder()
-                            .danger_accept_invalid_certs(true)
                             .timeout(Duration::from_secs(10))
                             .connect_timeout(Duration::from_secs(5))
                             .pool_idle_timeout(Duration::from_secs(60))
@@ -500,26 +498,11 @@ pub fn enable_tracing() -> Result<opentelemetry_sdk::trace::SdkTracerProvider, a
         }
     }
 
-    // Build resource attributes (base + extra envs)
-    let mut resource_attrs = vec![
+    let resource_attrs = vec![
         KeyValue::new("service.name", cfg.common.node_role.to_string()),
         KeyValue::new("service.instance", cfg.common.instance_name.to_string()),
         KeyValue::new("service.version", config::VERSION),
     ];
-    for env_name in cfg
-        .common
-        .tracing_extra_envs
-        .split(',')
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        if let Ok(val) = std::env::var(env_name)
-            && !val.is_empty()
-        {
-            resource_attrs.push(KeyValue::new(env_name.to_lowercase(), val));
-        }
-    }
-
     // If search inspector is enabled, add a span processor that ingests traces
     // directly into the _meta org. This ensures search profiling data is always
     // available in _meta regardless of where the user's OTLP endpoint points.
