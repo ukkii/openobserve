@@ -33,7 +33,6 @@ vi.mock("@/services/model_pricing", async (importOriginal) => {
       update: vi.fn(),
       delete: vi.fn(),
       getBuiltIn: vi.fn(),
-      refreshBuiltIn: vi.fn(),
       test: vi.fn(),
     },
   });
@@ -365,7 +364,6 @@ describe("ModelPricingList.vue", () => {
     } as any);
     vi.mocked(modelPricingService.update).mockResolvedValue({} as any);
     vi.mocked(modelPricingService.delete).mockResolvedValue({} as any);
-    vi.mocked(modelPricingService.refreshBuiltIn).mockResolvedValue({} as any);
     routerPushMock.mockReset();
     mockToastFn.mockReset();
   });
@@ -609,12 +607,9 @@ describe("ModelPricingList.vue", () => {
       expect(drawer.props("open")).toBe(false);
     });
 
-    it("labels the catalogue sync and test buttons by what they do", async () => {
+    it("labels the test button by what it does", async () => {
       wrapper = mountComponent();
       await flushPromises();
-      expect(wrapper.find('[data-test="model-pricing-refresh-btn"]').text()).toBe(
-        "Sync built-in prices",
-      );
       expect(wrapper.find('[data-test="model-pricing-test-match-btn"]').text()).toBe("Test match");
     });
   });
@@ -1039,37 +1034,6 @@ describe("ModelPricingList.vue", () => {
       await flushPromises();
 
       expect(mockToastFn).toHaveBeenCalledWith(expect.objectContaining({ variant: "error" }));
-    });
-  });
-
-  // ── refreshBuiltIn ───────────────────────────────────────────────────────
-
-  describe("refreshBuiltIn", () => {
-    it("notifies positive and refetches on success", async () => {
-      wrapper = mountComponent();
-      await flushPromises();
-      vi.mocked(modelPricingService.list).mockClear();
-
-      await wrapper.vm.refreshBuiltIn();
-      await flushPromises();
-
-      expect(modelPricingService.refreshBuiltIn).toHaveBeenCalledWith("test-org");
-      expect(modelPricingService.list).toHaveBeenCalled();
-      expect(mockToastFn).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: "success", message: "Built-in prices synced" }),
-      );
-    });
-
-    it("notifies negative when refresh fails", async () => {
-      wrapper = mountComponent();
-      await flushPromises();
-      vi.mocked(modelPricingService.refreshBuiltIn).mockRejectedValueOnce(new Error("nope"));
-
-      await wrapper.vm.refreshBuiltIn();
-      await flushPromises();
-
-      expect(mockToastFn).toHaveBeenCalledWith(expect.objectContaining({ variant: "error" }));
-      expect(wrapper.vm.refreshing).toBe(false);
     });
   });
 

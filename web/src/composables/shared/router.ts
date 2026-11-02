@@ -273,6 +273,15 @@ const useRoutes = () => {
       },
     },
     {
+      path: "/google/cb",
+      name: "googleCallback",
+      component: () => import("@/views/GoogleCallback.vue"),
+      meta: {
+        public: true,
+        titleKey: "routeTitles.loginCallback",
+      },
+    },
+    {
       // Outside MainLayout and the login redirect: anyone holding a public link can read it.
       path: "/ai/public/:token",
       name: "publicSharedChat",

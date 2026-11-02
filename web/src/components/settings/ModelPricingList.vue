@@ -46,15 +46,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         <OButton
           variant="outline"
           size="sm"
-          :loading="refreshing"
-          @click="refreshBuiltIn"
-          data-test="model-pricing-refresh-btn"
-        >
-          {{ t("modelPricing.syncBuiltInPrices") }}
-        </OButton>
-        <OButton
-          variant="outline"
-          size="sm"
           @click="showTestMatchDialog = true"
           data-test="model-pricing-test-match-btn"
         >
@@ -792,8 +783,6 @@ const forbidden = computed(() => {
   const e: any = modelsQuery.error.value;
   return e?.status === 403 || e?.response?.status === 403;
 });
-const refreshing = ref(false);
-
 const showPricingDialog = ref(false);
 const pricingDialogRow = ref<any>(null);
 
@@ -1186,22 +1175,6 @@ function openImport() {
       action: "import",
     },
   });
-}
-
-async function refreshBuiltIn() {
-  refreshing.value = true;
-  try {
-    await modelPricingService.refreshBuiltIn(orgIdentifier.value);
-    toast({
-      variant: "success",
-      message: t("modelPricing.builtInPricesSynced"),
-    });
-    await fetchModels(true);
-  } catch (e: any) {
-    notifyError(t("modelPricing.errSync"), e);
-  } finally {
-    refreshing.value = false;
-  }
 }
 
 function exportSelected() {

@@ -575,37 +575,36 @@ pub async fn check_permissions(
 
 #[cfg(not(feature = "enterprise"))]
 fn viewer_request_allowed(method: &str, path: &str) -> bool {
+    let path = path.strip_prefix("/api").unwrap_or(path);
     if matches!(method, "GET" | "HEAD") {
-        return true;
+        return !matches!(path, "/{org_id}/passcode" | "/{org_id}/rumtoken");
     }
     if method != "POST" {
         return false;
     }
 
-    let path = path.trim_end_matches('/');
-    [
-        "/_search",
-        "/_search_partition",
-        "/_search_multi",
-        "/_search_multi_stream",
-        "/_search_partition_multi",
-        "/_search_stream",
-        "/_values_stream",
-        "/result_schema",
-        "/profiles/series",
-        "/profiles/merge",
-        "/profiles/diff",
-        "/prometheus/api/v1/query",
-        "/prometheus/api/v1/query_range",
-        "/prometheus/api/v1/query_exemplars",
-        "/prometheus/api/v1/series",
-        "/prometheus/api/v1/labels",
-        "/prometheus/api/v1/format_query",
-        "/prometheus/api/v1/parse_tree",
-    ]
-    .iter()
-    .any(|suffix| path.ends_with(suffix))
-        || path.split('/').next_back() == Some("_around")
+    matches!(
+        path,
+        "/{org_id}/_search"
+            | "/{org_id}/_search_partition"
+            | "/{org_id}/_search_multi"
+            | "/{org_id}/_search_multi_stream"
+            | "/{org_id}/_search_partition_multi"
+            | "/{org_id}/_search_stream"
+            | "/{org_id}/_values_stream"
+            | "/{org_id}/result_schema"
+            | "/{org_id}/{stream_name}/_around"
+            | "/{org_id}/{stream_name}/profiles/series"
+            | "/{org_id}/{stream_name}/profiles/merge"
+            | "/{org_id}/{stream_name}/profiles/diff"
+            | "/{org_id}/prometheus/api/v1/query"
+            | "/{org_id}/prometheus/api/v1/query_range"
+            | "/{org_id}/prometheus/api/v1/query_exemplars"
+            | "/{org_id}/prometheus/api/v1/series"
+            | "/{org_id}/prometheus/api/v1/labels"
+            | "/{org_id}/prometheus/api/v1/format_query"
+            | "/{org_id}/prometheus/api/v1/parse_tree"
+    )
 }
 
 pub async fn list_objects_for_user(
@@ -1385,17 +1384,32 @@ mod tests {
     #[cfg(not(feature = "enterprise"))]
     #[test]
     fn viewer_allows_reads_and_only_explicit_query_posts() {
-        assert!(viewer_request_allowed("GET", "default/streams"));
-        assert!(viewer_request_allowed("HEAD", "default/health"));
-        assert!(viewer_request_allowed("POST", "default/_search"));
+        assert!(viewer_request_allowed("GET", "/{org_id}/streams"));
+        assert!(viewer_request_allowed("HEAD", "/{org_id}/health"));
+        assert!(viewer_request_allowed("POST", "/{org_id}/_search"));
         assert!(viewer_request_allowed(
             "POST",
-            "default/prometheus/api/v1/query_range"
+            "/{org_id}/prometheus/api/v1/query_range"
         ));
-        assert!(!viewer_request_allowed("POST", "default/streams"));
-        assert!(!viewer_request_allowed("POST", "default/_bulk"));
-        assert!(!viewer_request_allowed("PUT", "default/users/me"));
-        assert!(!viewer_request_allowed("DELETE", "default/streams/app"));
+        assert!(!viewer_request_allowed("POST", "/{org_id}/streams"));
+        assert!(!viewer_request_allowed("POST", "/{org_id}/_bulk"));
+        assert!(!viewer_request_allowed("PUT", "/{org_id}/users/{email}"));
+        assert!(!viewer_request_allowed(
+            "DELETE",
+            "/{org_id}/streams/{stream_name}"
+        ));
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[test]
+    fn viewer_denies_credentials_and_suffix_collisions() {
+        assert!(!viewer_request_allowed("GET", "/{org_id}/rumtoken"));
+        assert!(!viewer_request_allowed("GET", "/api/{org_id}/passcode"));
+        assert!(!viewer_request_allowed("POST", "default/streams/_search"));
+        assert!(!viewer_request_allowed(
+            "POST",
+            "/{org_id}/enrichment_tables/{table_name}"
+        ));
     }
 
     #[cfg(feature = "enterprise")]

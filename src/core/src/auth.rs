@@ -17,7 +17,7 @@ use std::{collections::HashMap, fmt::Debug, num::NonZeroUsize, sync::LazyLock};
 
 use axum::{
     Json,
-    extract::FromRequestParts,
+    extract::{FromRequestParts, MatchedPath},
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Response},
 };
@@ -208,6 +208,14 @@ pub fn get_role(role: &UserOrgRole) -> UserRole {
 #[cfg(not(feature = "enterprise"))]
 pub fn get_role(role: &UserOrgRole) -> UserRole {
     role.base_role.clone()
+}
+
+#[cfg(not(feature = "enterprise"))]
+pub const fn is_community_role_assignable(role: &UserRole) -> bool {
+    matches!(
+        role,
+        UserRole::Admin | UserRole::Editor | UserRole::Viewer | UserRole::User
+    )
 }
 
 fn deserialize_trimmed<'de, D>(deserializer: D) -> Result<String, D::Error>
@@ -494,10 +502,15 @@ where
         if !auth.is_empty() {
             let path = routed_path(parts.uri.path());
             let path_columns = path.split('/').collect::<Vec<_>>();
+            let matched_path = parts
+                .extensions
+                .get::<MatchedPath>()
+                .map(MatchedPath::as_str)
+                .unwrap_or_default();
             return Ok(AuthExtractor {
                 auth,
                 method: parts.method.to_string(),
-                o2_type: path.to_string(),
+                o2_type: matched_path.to_string(),
                 org_id: org_from_path(&path_columns).to_string(),
                 bypass_check: false,
                 parent_id: String::new(),
@@ -588,11 +601,12 @@ pub async fn extract_auth_str_from_headers(headers: &HeaderMap) -> String {
     if let Some(session_key) = cookies.get("o2_session") {
         match crate::db::session::get(session_key).await {
             Ok(token) if token.starts_with("Community ") => {
-                format!("Session::{session_key}::{token}")
+                return format!("Session::{session_key}::{token}");
             }
-            Ok(_) | Err(_) => String::new(),
+            Ok(_) | Err(_) => {}
         }
-    } else if let Some(cookie) = cookies.get("auth_tokens") {
+    }
+    if let Some(cookie) = cookies.get("auth_tokens") {
         let val = config::utils::base64::decode_raw(cookie).unwrap_or_default();
         let auth_tokens: AuthTokens =
             json::from_str(std::str::from_utf8(&val).unwrap_or_default()).unwrap_or_default();
@@ -1197,6 +1211,22 @@ mod tests {
     }
 
     #[cfg(not(feature = "enterprise"))]
+    #[test]
+    fn community_role_assignment_excludes_privileged_account_kinds() {
+        for role in [
+            UserRole::Admin,
+            UserRole::Editor,
+            UserRole::Viewer,
+            UserRole::User,
+        ] {
+            assert!(is_community_role_assignable(&role));
+        }
+        for role in [UserRole::Root, UserRole::ServiceAccount, UserRole::SreAgent] {
+            assert!(!is_community_role_assignable(&role));
+        }
+    }
+
+    #[cfg(not(feature = "enterprise"))]
     #[tokio::test]
     async fn test_check_permissions_non_enterprise() {
         // In non-enterprise mode, should always return false
@@ -1353,6 +1383,34 @@ mod tests {
                 format!("Bearer {access_token}")
             );
         }
+    }
+
+    #[tokio::test]
+    async fn stale_community_cookie_falls_through_to_authorization_header() {
+        let session_id = "stale-community-cookie-test";
+        common::infra::config::USER_SESSIONS
+            .insert(session_id.to_string(), "Basic unrelated".to_string());
+        common::infra::config::USER_SESSIONS_EXPIRY.insert(
+            session_id.to_string(),
+            chrono::Utc::now().timestamp_micros() + 60_000_000,
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            http::header::COOKIE,
+            format!("o2_session={session_id}").parse().unwrap(),
+        );
+        headers.insert(
+            http::header::AUTHORIZATION,
+            "Bearer header-token".parse().unwrap(),
+        );
+
+        assert_eq!(
+            extract_auth_str_from_headers(&headers).await,
+            "Bearer header-token"
+        );
+
+        common::infra::config::USER_SESSIONS.remove(session_id);
+        common::infra::config::USER_SESSIONS_EXPIRY.remove(session_id);
     }
 
     #[cfg(feature = "enterprise")]

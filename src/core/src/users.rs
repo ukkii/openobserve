@@ -104,6 +104,12 @@ pub async fn post_user(
         return Ok(MetaHttpResponse::bad_request("Invalid email"));
     }
     usr_req.email = usr_req.email.to_lowercase();
+    #[cfg(not(feature = "enterprise"))]
+    if !crate::auth::is_community_role_assignable(&usr_req.role.base_role) {
+        return Ok(MetaHttpResponse::bad_request(
+            "Role cannot be assigned in community edition",
+        ));
+    }
     if let Some(_custom_roles) = &usr_req.role.custom_role {
         #[cfg(not(feature = "enterprise"))]
         return Ok(MetaHttpResponse::bad_request("Custom roles not allowed"));
@@ -319,6 +325,18 @@ pub async fn update_user(
     {
         return Ok(MetaHttpResponse::bad_request(
             "Root user role cannot be updated",
+        ));
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    if user
+        .role
+        .as_ref()
+        .and_then(|role| role.role.parse::<UserRole>().ok())
+        .is_some_and(|role| !crate::auth::is_community_role_assignable(&role))
+    {
+        return Ok(MetaHttpResponse::bad_request(
+            "Role cannot be assigned in community edition",
         ));
     }
 
@@ -735,6 +753,12 @@ pub async fn add_user_to_org(
 ) -> Result<Response, Error> {
     if !is_valid_email(email) {
         return Ok(MetaHttpResponse::bad_request("Invalid email"));
+    }
+    #[cfg(not(feature = "enterprise"))]
+    if !crate::auth::is_community_role_assignable(&role.base_role) {
+        return Ok(MetaHttpResponse::bad_request(
+            "Role cannot be assigned in community edition",
+        ));
     }
     let email = email.trim();
     let existing_user = db::user::get_user_record(email).await;

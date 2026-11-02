@@ -59,6 +59,7 @@ mod llm_playground_cleanup;
 mod llm_review_reconciliation;
 mod llm_secret_cleanup;
 pub mod metrics;
+mod mmdb_loader;
 #[cfg(feature = "enterprise")]
 mod oncall_maintenance;
 #[cfg(feature = "enterprise")]
@@ -545,6 +546,9 @@ pub async fn init() -> Result<(), anyhow::Error> {
     // never receives a URL enrichment event. Critical for distributed deployments.
     if LOCAL_NODE.is_ingester() {
         enrichment_data::enrichment_table::init_url_processor();
+    }
+    if LOCAL_NODE.is_ingester() || LOCAL_NODE.is_querier() || LOCAL_NODE.is_scheduler() {
+        mmdb_loader::run().await?;
     }
 
     db::user::cache().await.expect("user cache failed");

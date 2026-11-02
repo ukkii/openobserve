@@ -507,6 +507,11 @@ pub async fn get_user_rumtoken(
 ) -> Response {
     let org = org_id;
     let user_id = user_email.user_id.as_str();
+    if let Err(resp) =
+        super::require_credential_access(&org, user_id, "read the RUM ingestion token").await
+    {
+        return resp;
+    }
     let mut org_id = Some(org.as_str());
     if is_root_user(user_id) {
         org_id = None;
@@ -548,6 +553,11 @@ pub async fn update_user_rumtoken(
 ) -> Response {
     let org = org_id;
     let user_id = user_email.user_id.as_str();
+    if let Err(resp) =
+        super::require_credential_access(&org, user_id, "rotate the RUM ingestion token").await
+    {
+        return resp;
+    }
     let mut org_id = Some(org.as_str());
     if is_root_user(user_id) {
         org_id = None;
@@ -589,6 +599,11 @@ pub async fn create_user_rumtoken(
 ) -> Response {
     let org = org_id;
     let user_id = user_email.user_id.as_str();
+    if let Err(resp) =
+        super::require_credential_access(&org, user_id, "create the RUM ingestion token").await
+    {
+        return resp;
+    }
     let mut org_id = Some(org.as_str());
     if is_root_user(user_id) {
         org_id = None;

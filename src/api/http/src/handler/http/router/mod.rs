@@ -1103,6 +1103,7 @@ pub fn config_routes() -> Router {
         .route("/", get(status::zo_config_bootstrap))
         .route("/google_login", get(google_auth::login))
         .route("/google_callback", get(google_auth::callback))
+        .route("/google_session", get(google_auth::session))
         .route("/logout", get(status::logout))
 }
 
@@ -1115,6 +1116,7 @@ pub fn config_routes() -> Router {
         .route("/", get(status::zo_config_bootstrap))
         .route("/google_login", get(google_auth::login))
         .route("/google_callback", get(google_auth::callback))
+        .route("/google_session", get(google_auth::session))
         .route("/logout", get(status::logout))
         .route("/redirect", get(status::redirect))
         .route("/dex_login", get(status::dex_login))

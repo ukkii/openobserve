@@ -14,12 +14,12 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::{
-    collections::HashMap,
-    sync::{LazyLock, Mutex},
+    sync::LazyLock,
     time::{Duration, Instant},
 };
 
 use axum::{
+    Json,
     extract::Query,
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
@@ -31,7 +31,7 @@ use axum_extra::extract::{
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use config::{get_config, meta::user::UserRole};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use time::{Duration as CookieDuration, OffsetDateTime};
 use url::Url;
@@ -40,16 +40,17 @@ const DISCOVERY_URL: &str = "https://accounts.google.com/.well-known/openid-conf
 const STATE_COOKIE: &str = "o2_google_state";
 const SESSION_COOKIE: &str = "o2_session";
 const LOGIN_TTL_SECS: u64 = 600;
+const PENDING_LOGIN_PREFIX: &str = "google_pending:";
 
-static PENDING_LOGINS: LazyLock<Mutex<HashMap<String, PendingLogin>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
 static JWKS_CACHE: LazyLock<tokio::sync::RwLock<Option<CachedJwks>>> =
     LazyLock::new(|| tokio::sync::RwLock::new(None));
+static DISCOVERY_CACHE: LazyLock<tokio::sync::RwLock<Option<CachedDiscovery>>> =
+    LazyLock::new(|| tokio::sync::RwLock::new(None));
 
+#[derive(Deserialize, Serialize)]
 struct PendingLogin {
     nonce: String,
     verifier: String,
-    expires_at: Instant,
 }
 
 struct CachedJwks {
@@ -57,7 +58,12 @@ struct CachedJwks {
     expires_at: Instant,
 }
 
-#[derive(Deserialize)]
+struct CachedDiscovery {
+    value: Discovery,
+    expires_at: Instant,
+}
+
+#[derive(Clone, Deserialize)]
 struct Discovery {
     issuer: String,
     authorization_endpoint: String,
@@ -79,10 +85,16 @@ struct TokenResponse {
 
 #[derive(Deserialize)]
 struct Claims {
-    exp: i64,
     nonce: String,
     email: String,
     email_verified: bool,
+}
+
+#[derive(Serialize)]
+pub struct CommunitySession {
+    email: String,
+    first_name: String,
+    last_name: String,
 }
 
 pub fn is_enabled() -> bool {
@@ -102,17 +114,13 @@ pub async fn login(cookies: CookieJar) -> Response {
     let nonce = config::utils::rand::random_hex(32);
     let verifier = URL_SAFE_NO_PAD.encode(config::utils::rand::random_bytes(48));
     let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
-    PENDING_LOGINS
-        .lock()
-        .unwrap_or_else(|error| error.into_inner())
-        .insert(
-            state.clone(),
-            PendingLogin {
-                nonce: nonce.clone(),
-                verifier,
-                expires_at: Instant::now() + Duration::from_secs(LOGIN_TTL_SECS),
-            },
-        );
+    let pending = PendingLogin {
+        nonce: nonce.clone(),
+        verifier,
+    };
+    if let Err(error) = store_pending(&state, &pending).await {
+        return auth_error(StatusCode::INTERNAL_SERVER_ERROR, error);
+    }
 
     let authorization_url = build_authorization_url(
         &discovery.authorization_endpoint,
@@ -141,10 +149,10 @@ pub async fn callback(cookies: CookieJar, Query(query): Query<CallbackQuery>) ->
     let Some(state) = query.state.as_deref() else {
         return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
     };
-    if cookies.get(STATE_COOKIE).map(Cookie::value) != Some(state) {
+    if !state_matches(&cookies, state) {
         return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
     }
-    let Some(pending) = consume_pending(state) else {
+    let Ok(pending) = consume_pending(state).await else {
         return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
     };
     let Some(code) = query.code.as_deref() else {
@@ -179,12 +187,8 @@ pub async fn callback(cookies: CookieJar, Query(query): Query<CallbackQuery>) ->
     }
 
     let now = chrono::Utc::now().timestamp();
-    let expires_at = claims
-        .exp
-        .min(now + get_config().auth.cookie_max_age.max(1));
-    if expires_at <= now {
-        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
-    }
+    let ttl_secs = get_config().auth.cookie_max_age.max(1);
+    let expires_at = session_expiry(now, ttl_secs);
     let session_id = config::utils::rand::random_hex(32);
     if let Err(error) = db::session::set_with_expiry(
         &session_id,
@@ -198,10 +202,34 @@ pub async fn callback(cookies: CookieJar, Query(query): Query<CallbackQuery>) ->
 
     let jar = cookies.add(clear_state).add(session_cookie(
         session_id,
-        expires_at - now,
+        ttl_secs,
         redirect_is_secure(&redirect_url),
     ));
-    (jar, Redirect::temporary(&console_url(&email))).into_response()
+    (jar, Redirect::temporary(&console_url())).into_response()
+}
+
+pub async fn session(cookies: CookieJar) -> Response {
+    let Some(session_id) = cookies.get(SESSION_COOKIE).map(Cookie::value) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let Ok(token) = db::session::get(session_id).await else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let Some(email) = token.strip_prefix("Community ").map(str::trim) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let Some(user) = db::user::get_user_by_email(email).await else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    if !login_user_allowed(&user) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    Json(CommunitySession {
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+    })
+    .into_response()
 }
 
 fn valid_config() -> Option<(String, String, String)> {
@@ -236,6 +264,10 @@ fn redirect_is_secure(redirect_url: &str) -> bool {
     Url::parse(redirect_url).is_ok_and(|url| url.scheme() == "https")
 }
 
+fn state_matches(cookies: &CookieJar, state: &str) -> bool {
+    cookies.get(STATE_COOKIE).map(Cookie::value) == Some(state)
+}
+
 fn valid_google_endpoint(value: &str) -> bool {
     Url::parse(value).is_ok_and(|url| {
         url.scheme() == "https"
@@ -247,13 +279,22 @@ fn valid_google_endpoint(value: &str) -> bool {
 }
 
 async fn fetch_discovery() -> Result<Discovery, anyhow::Error> {
-    let discovery = reqwest::Client::new()
+    if let Some(cached) = DISCOVERY_CACHE.read().await.as_ref()
+        && cached.expires_at > Instant::now()
+    {
+        return Ok(cached.value.clone());
+    }
+    let response = reqwest::Client::new()
         .get(DISCOVERY_URL)
         .send()
         .await?
-        .error_for_status()?
-        .json::<Discovery>()
-        .await?;
+        .error_for_status()?;
+    let max_age = response
+        .headers()
+        .get(reqwest::header::CACHE_CONTROL)
+        .and_then(|value| value.to_str().ok())
+        .and_then(cache_max_age);
+    let discovery = response.json::<Discovery>().await?;
     if discovery.issuer != "https://accounts.google.com"
         || !valid_google_endpoint(&discovery.authorization_endpoint)
         || !valid_google_endpoint(&discovery.token_endpoint)
@@ -261,6 +302,10 @@ async fn fetch_discovery() -> Result<Discovery, anyhow::Error> {
     {
         anyhow::bail!("Google discovery metadata is invalid");
     }
+    *DISCOVERY_CACHE.write().await = max_age.map(|seconds| CachedDiscovery {
+        value: discovery.clone(),
+        expires_at: Instant::now() + Duration::from_secs(seconds),
+    });
     Ok(discovery)
 }
 
@@ -285,12 +330,30 @@ fn build_authorization_url(
     url
 }
 
-fn consume_pending(state: &str) -> Option<PendingLogin> {
-    let mut pending = PENDING_LOGINS
-        .lock()
-        .unwrap_or_else(|error| error.into_inner());
-    pending.retain(|_, login| login.expires_at > Instant::now());
-    pending.remove(state)
+fn pending_key(state: &str) -> String {
+    format!("{PENDING_LOGIN_PREFIX}{state}")
+}
+
+fn session_expiry(now: i64, ttl_secs: i64) -> i64 {
+    now.saturating_add(ttl_secs.max(1))
+}
+
+async fn store_pending(state: &str, pending: &PendingLogin) -> Result<(), anyhow::Error> {
+    let expires_at = chrono::Utc::now()
+        .timestamp_micros()
+        .saturating_add((LOGIN_TTL_SECS as i64).saturating_mul(1_000_000));
+    db::session::set_with_expiry(
+        &pending_key(state),
+        &serde_json::to_string(pending)?,
+        expires_at,
+    )
+    .await
+}
+
+async fn consume_pending(state: &str) -> Result<PendingLogin, anyhow::Error> {
+    Ok(serde_json::from_str(
+        &db::session::take(&pending_key(state)).await?,
+    )?)
 }
 
 async fn exchange_code(
@@ -324,6 +387,17 @@ async fn validate_id_token(
     client_id: &str,
     nonce: &str,
 ) -> Result<Claims, anyhow::Error> {
+    let jwks: jwk::JwkSet = serde_json::from_str(&fetch_jwks(&discovery.jwks_uri).await?)?;
+    validate_id_token_with_jwks(token, discovery, client_id, nonce, &jwks)
+}
+
+fn validate_id_token_with_jwks(
+    token: &str,
+    discovery: &Discovery,
+    client_id: &str,
+    nonce: &str,
+    jwks: &jwk::JwkSet,
+) -> Result<Claims, anyhow::Error> {
     let header = decode_header(token)?;
     if header.alg != Algorithm::RS256 {
         anyhow::bail!("unsupported Google ID token algorithm");
@@ -331,7 +405,6 @@ async fn validate_id_token(
     let kid = header
         .kid
         .ok_or_else(|| anyhow::anyhow!("missing ID token key id"))?;
-    let jwks: jwk::JwkSet = serde_json::from_str(&fetch_jwks(&discovery.jwks_uri).await?)?;
     let key = jwks
         .find(&kid)
         .ok_or_else(|| anyhow::anyhow!("ID token signing key not found"))?;
@@ -350,6 +423,9 @@ async fn validate_id_token(
     .claims;
     if claims.nonce != nonce {
         anyhow::bail!("ID token nonce does not match");
+    }
+    if !claims.email_verified {
+        anyhow::bail!("Google email is not verified");
     }
     Ok(claims)
 }
@@ -391,15 +467,16 @@ fn cache_max_age(value: &str) -> Option<u64> {
 async fn existing_login_user(email: &str) -> bool {
     db::user::get_user_by_email(email)
         .await
-        .is_some_and(|user| {
-            !user.organizations.is_empty()
-                && user.organizations.iter().any(|org| {
-                    !matches!(
-                        org.role,
-                        UserRole::ServiceAccount | UserRole::SreAgent | UserRole::User
-                    )
-                })
-        })
+        .is_some_and(|user| login_user_allowed(&user))
+}
+
+fn login_user_allowed(user: &config::meta::user::DBUser) -> bool {
+    user.organizations.iter().any(|org| {
+        !matches!(
+            org.role,
+            UserRole::ServiceAccount | UserRole::SreAgent | UserRole::User
+        )
+    })
 }
 
 fn state_cookie(value: String, secure: bool) -> Cookie<'static> {
@@ -434,14 +511,11 @@ fn expired_cookie(name: &'static str, secure: bool) -> Cookie<'static> {
         .build()
 }
 
-fn console_url(email: &str) -> String {
+fn console_url() -> String {
     let cfg = get_config();
-    let user = serde_json::json!({"email": email, "name": email});
     format!(
-        "{}{}/web/cb#id_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.{}",
-        cfg.common.web_url,
-        cfg.common.base_uri,
-        config::utils::base64::encode(&user.to_string())
+        "{}{}/web/google/cb",
+        cfg.common.web_url, cfg.common.base_uri
     )
 }
 
@@ -452,7 +526,95 @@ fn auth_error(status: StatusCode, error: impl std::fmt::Display) -> Response {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use jsonwebtoken::{EncodingKey, Header, encode};
+    use serde::Serialize;
+
     use super::*;
+
+    const CLIENT_ID: &str = "community-client";
+    const KID: &str = "test-key";
+    const PRIVATE_KEY: &[u8] = include_bytes!("testdata/google_rsa_private.pem");
+    const MODULUS: &str = "tsQsUV8QpqrygsY-2-JCQ6Fw8_omM71IM2N_R8pPbzbgOl0p78MZGsgPOQ2HSznjD0FPzsH8oO2B5Uftws04LHb2HJAYlz25-lN5cqfHAfa3fgmC38FfwBkn7l582UtPWZ_wcBOnyCgb3yLcvJrXyrt8QxHJgvWO23ITrUVYszImbXQ67YGS0YhMrbixRzmo2tpm3JcIBtnHrEUMsT0NfFdfsZhTT8YbxBvA8FdODgEwx7u_vf3J9qbi4-Kv8cvqyJuleIRSjVXPsIMnoejIn04APPKIjpMyQdnWlby7rNyQtE4-CV-jcFjqJbE_Xilcvqxt6DirjFCvYeKYl1uHLw";
+
+    #[derive(Clone, Serialize)]
+    struct TestClaims {
+        iss: String,
+        aud: String,
+        exp: i64,
+        nonce: String,
+        email: String,
+        email_verified: bool,
+    }
+
+    fn discovery() -> Discovery {
+        Discovery {
+            issuer: "https://accounts.google.com".to_string(),
+            authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth".to_string(),
+            token_endpoint: "https://oauth2.googleapis.com/token".to_string(),
+            jwks_uri: "https://www.googleapis.com/oauth2/v3/certs".to_string(),
+        }
+    }
+
+    fn jwks() -> jwk::JwkSet {
+        serde_json::from_value(serde_json::json!({
+            "keys": [{
+                "kty": "RSA",
+                "alg": "RS256",
+                "use": "sig",
+                "kid": KID,
+                "n": MODULUS,
+                "e": "AQAB"
+            }]
+        }))
+        .unwrap()
+    }
+
+    fn valid_claims() -> TestClaims {
+        TestClaims {
+            iss: "https://accounts.google.com".to_string(),
+            aud: CLIENT_ID.to_string(),
+            exp: chrono::Utc::now().timestamp() + 300,
+            nonce: "expected-nonce".to_string(),
+            email: "viewer@example.com".to_string(),
+            email_verified: true,
+        }
+    }
+
+    fn signed(claims: &TestClaims, kid: Option<&str>) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = kid.map(str::to_string);
+        encode(
+            &header,
+            claims,
+            &EncodingKey::from_rsa_pem(PRIVATE_KEY).unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn validate(token: &str) -> Result<Claims, anyhow::Error> {
+        validate_id_token_with_jwks(token, &discovery(), CLIENT_ID, "expected-nonce", &jwks())
+    }
+
+    fn db_user(role: UserRole) -> config::meta::user::DBUser {
+        config::meta::user::DBUser {
+            email: "viewer@example.com".to_string(),
+            first_name: "View".to_string(),
+            last_name: "Er".to_string(),
+            password: String::new(),
+            salt: String::new(),
+            organizations: vec![config::meta::user::UserOrg {
+                name: "acme".to_string(),
+                org_name: "Acme".to_string(),
+                token: String::new(),
+                rum_token: None,
+                role,
+            }],
+            is_external: true,
+            password_ext: None,
+        }
+    }
 
     #[test]
     fn redirect_urls_allow_https_and_local_http_only() {
@@ -505,20 +667,112 @@ mod tests {
     }
 
     #[test]
-    fn pending_state_is_consumed_once() {
-        let state = "one-use-state".to_string();
-        PENDING_LOGINS
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .insert(
-                state.clone(),
-                PendingLogin {
-                    nonce: "nonce".to_string(),
-                    verifier: "verifier".to_string(),
-                    expires_at: Instant::now() + Duration::from_secs(10),
-                },
-            );
-        assert!(consume_pending(&state).is_some());
-        assert!(consume_pending(&state).is_none());
+    fn pending_state_uses_the_shared_session_namespace() {
+        assert_eq!(pending_key("one-use-state"), "google_pending:one-use-state");
+        let pending = PendingLogin {
+            nonce: "nonce".to_string(),
+            verifier: "verifier".to_string(),
+        };
+        assert_eq!(
+            serde_json::from_str::<PendingLogin>(&serde_json::to_string(&pending).unwrap())
+                .unwrap()
+                .nonce,
+            "nonce"
+        );
+    }
+
+    #[test]
+    fn state_cookie_must_match_callback_state() {
+        let cookies = CookieJar::new().add(state_cookie("expected".to_string(), true));
+        assert!(state_matches(&cookies, "expected"));
+        assert!(!state_matches(&cookies, "different"));
+    }
+
+    #[test]
+    fn google_cookies_are_http_only_lax_and_bounded() {
+        for cookie in [
+            state_cookie("state".to_string(), true),
+            session_cookie("session".to_string(), 3600, true),
+        ] {
+            assert_eq!(cookie.http_only(), Some(true));
+            assert_eq!(cookie.secure(), Some(true));
+            assert_eq!(cookie.same_site(), Some(SameSite::Lax));
+            assert_eq!(cookie.path(), Some("/"));
+            assert!(cookie.max_age().is_some());
+            assert!(cookie.expires().is_some());
+        }
+    }
+
+    #[test]
+    fn session_lifetime_uses_configured_cookie_ttl_not_id_token_expiry() {
+        assert_eq!(session_expiry(1_000, 86_400), 87_400);
+        assert_eq!(session_expiry(1_000, 0), 1_001);
+    }
+
+    #[test]
+    fn existing_google_login_requires_an_allowed_membership() {
+        assert!(login_user_allowed(&db_user(UserRole::Viewer)));
+        assert!(login_user_allowed(&db_user(UserRole::Editor)));
+        assert!(!login_user_allowed(&db_user(UserRole::User)));
+        assert!(!login_user_allowed(&db_user(UserRole::ServiceAccount)));
+        let mut missing = db_user(UserRole::Viewer);
+        missing.organizations.clear();
+        assert!(!login_user_allowed(&missing));
+    }
+
+    #[test]
+    fn id_token_accepts_a_valid_google_rs256_token() {
+        let claims = validate(&signed(&valid_claims(), Some(KID))).unwrap();
+        assert_eq!(claims.email, "viewer@example.com");
+    }
+
+    #[test]
+    fn id_token_rejects_signature_algorithm_and_key_id_failures() {
+        let valid = signed(&valid_claims(), Some(KID));
+        let (prefix, signature) = valid.rsplit_once('.').unwrap();
+        let replacement = if signature.starts_with('A') { "B" } else { "A" };
+        let bad_signature = format!("{prefix}.{replacement}{}", &signature[1..]);
+        assert!(validate(&bad_signature).is_err());
+        assert!(validate(&signed(&valid_claims(), None)).is_err());
+        assert!(validate(&signed(&valid_claims(), Some("unknown"))).is_err());
+
+        let mut header = Header::new(Algorithm::HS256);
+        header.kid = Some(KID.to_string());
+        let hs256 = encode(
+            &header,
+            &valid_claims(),
+            &EncodingKey::from_secret(b"secret"),
+        )
+        .unwrap();
+        assert!(validate(&hs256).is_err());
+    }
+
+    #[test]
+    fn id_token_rejects_invalid_standard_and_google_claims() {
+        let cases = [
+            TestClaims {
+                iss: "https://issuer.example.com".to_string(),
+                ..valid_claims()
+            },
+            TestClaims {
+                aud: "other-client".to_string(),
+                ..valid_claims()
+            },
+            TestClaims {
+                exp: chrono::Utc::now().timestamp() - 300,
+                ..valid_claims()
+            },
+            TestClaims {
+                nonce: "different".to_string(),
+                ..valid_claims()
+            },
+            TestClaims {
+                email_verified: false,
+                ..valid_claims()
+            },
+        ];
+        for claims in cases {
+            assert!(validate(&signed(&claims, Some(KID))).is_err());
+        }
     }
 }

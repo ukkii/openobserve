@@ -30,6 +30,8 @@ use config::{
     utils::{base64, json},
 };
 use openobserve_api_common::{auth::validator::AuthError, extractors::Headers};
+#[cfg(not(feature = "enterprise"))]
+use openobserve_core::auth::is_community_role_assignable;
 use openobserve_core::{
     auth::{UserEmail, generate_presigned_url, is_valid_email},
     users,
@@ -277,6 +279,11 @@ pub async fn save(
     let mut user = UserRequest::from(&user);
     user.email = user.email.trim().to_lowercase();
 
+    #[cfg(not(feature = "enterprise"))]
+    if !is_community_role_assignable(&user.role.base_role) {
+        return MetaHttpResponse::bad_request("Role cannot be assigned in community edition");
+    }
+
     let bad_req_msg = if let Some(msg) = validate_org_id(&org_id) {
         Some(msg.to_string())
     } else if let Err(msg) = db::password_policy::validate_password(&user.password).await {
@@ -305,10 +312,6 @@ pub async fn save(
             .unwrap();
     }
 
-    #[cfg(not(feature = "enterprise"))]
-    {
-        user.role.base_role = UserRole::Admin;
-    }
     match users::post_user(&org_id, user, &initiator_id).await {
         Ok(resp) => resp,
         Err(e) => MetaHttpResponse::internal_error(e),
@@ -351,8 +354,6 @@ pub async fn update(
     axum::Json(user): axum::Json<UpdateUser>,
 ) -> Response {
     let email_id = email_id.trim().to_string();
-    #[cfg(not(feature = "enterprise"))]
-    let mut user = user;
     if user.eq(&UpdateUser::default()) {
         return Response::builder()
             .status(StatusCode::BAD_REQUEST)
@@ -402,11 +403,13 @@ pub async fn update(
     }
 
     #[cfg(not(feature = "enterprise"))]
+    if let Some(role) = user
+        .role
+        .as_ref()
+        .and_then(|role| role.role.parse::<UserRole>().ok())
+        && !is_community_role_assignable(&role)
     {
-        user.role = Some(UserRoleRequest {
-            role: UserRole::Admin.to_string(),
-            custom: None,
-        });
+        return MetaHttpResponse::bad_request("Role cannot be assigned in community edition");
     }
     let initiator_id = &user_email.user_id;
     let update_mode = if user_email.user_id.eq(&email_id) {
@@ -454,6 +457,11 @@ pub async fn add_user_to_org(
 ) -> Response {
     let initiator_id = user_email.user_id;
     let role = UserOrgRole::from(&role);
+
+    #[cfg(not(feature = "enterprise"))]
+    if !is_community_role_assignable(&role.base_role) {
+        return MetaHttpResponse::bad_request("Role cannot be assigned in community edition");
+    }
 
     // Prevent assignment of SreAgent role via API
     if role.base_role == UserRole::SreAgent {

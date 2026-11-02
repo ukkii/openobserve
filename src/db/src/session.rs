@@ -169,6 +169,33 @@ pub async fn delete(session_id: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+pub async fn take(session_id: &str) -> Result<String, anyhow::Error> {
+    let session = infra::table::sessions::take(session_id).await?;
+    USER_SESSIONS.remove(session_id);
+    USER_SESSIONS_EXPIRY.remove(session_id);
+    let Some(session) = session else {
+        return Err(anyhow::anyhow!("Session not found: {session_id}"));
+    };
+
+    let key = format!("{USER_SESSION_KEY}{session_id}");
+    if let Err(e) = delete_from_db_coordinator(&key, false, true, None).await {
+        log::error!("[SESSION] Failed to delete session from coordinator: {key} - {e}");
+    }
+    #[cfg(feature = "enterprise")]
+    if get_o2_config().super_cluster.enabled {
+        let _ = o2_enterprise::enterprise::super_cluster::queue::delete(&key, false, true, None)
+            .await
+            .inspect_err(|e| {
+                log::error!("[SESSION] delete to super cluster failed: {key} - {e}");
+            });
+    }
+
+    if is_expired(session.expires_at) {
+        return Err(anyhow::anyhow!("Session expired"));
+    }
+    Ok(session.access_token)
+}
+
 pub async fn watch() -> Result<(), anyhow::Error> {
     let key = USER_SESSION_KEY;
     let cluster_coordinator = infra::db::get_coordinator().await;

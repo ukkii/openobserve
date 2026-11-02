@@ -202,7 +202,7 @@ async fn ingest_buffered_data(thread_id: usize, buffered: Vec<ReportingData>) {
         }
     }
 
-    if !errors.is_empty() {
+    if cfg.common.usage_reporting_errors_enabled && !errors.is_empty() {
         let error_stream = StreamParams::new(META_ORG_ID, ERROR_STREAM, StreamType::Logs);
         if let Err(e) = super::ingestion::ingest_reporting_data(errors, error_stream).await {
             log::error!("[SELF-REPORTING] Error in ingesting ErrorData: {e}");

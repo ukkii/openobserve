@@ -2370,6 +2370,14 @@ pub struct Common {
     pub print_key_sql: bool,
     #[env_config(name = "ZO_PRINT_PLAN_SINGLE_LINE", default = true)]
     pub print_plan_single_line: bool,
+    #[env_config(name = "ZO_USAGE_REPORTING_ENABLED", default = true)]
+    pub usage_reporting_enabled: bool,
+    #[env_config(
+        name = "ZO_USAGE_REPORTING_ERRORS_ENABLED",
+        default = true,
+        help = "Write error data to the local _meta errors stream. Error text can echo the record that failed."
+    )]
+    pub usage_reporting_errors_enabled: bool,
     #[env_config(name = "ZO_USAGE_BATCH_SIZE", default = 2000)]
     pub usage_batch_size: usize,
     #[env_config(

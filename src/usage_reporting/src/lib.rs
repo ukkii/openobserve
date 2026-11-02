@@ -148,6 +148,11 @@ pub fn publish_auto_investigate_decision(row: DecisionRow) {
 
 pub async fn publish_error(error_data: ErrorData) {
     let cfg = get_config();
+    #[cfg(not(feature = "enterprise"))]
+    if !cfg.common.usage_reporting_errors_enabled {
+        log::debug!("[SELF-REPORTING] Skipping error publish - error reporting disabled");
+        return;
+    }
 
     let timeout_duration = Duration::from_secs(cfg.common.error_publish_timeout_secs);
     let org = error_data.stream_params.org_id.clone();
@@ -240,6 +245,11 @@ pub async fn report_request_usage_stats(
         metrics::INGEST_BYTES
             .with_label_values(&[org_id, stream_type.as_str()])
             .inc_by((stats.size * SIZE_IN_MB) as u64);
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    if !get_config().common.usage_reporting_enabled {
+        return;
     }
 
     let now = DateTime::from_timestamp_micros(timestamp).unwrap();
@@ -357,6 +367,11 @@ pub fn report_usage(usages: Vec<UsageData>) {
 }
 
 async fn publish_usage(usages: Vec<UsageData>) {
+    #[cfg(not(feature = "enterprise"))]
+    if !get_config().common.usage_reporting_enabled {
+        return;
+    }
+
     for usage in usages {
         let event = usage.event;
         if let Err(e) = USAGE_QUEUE

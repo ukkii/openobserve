@@ -13,7 +13,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
+use sea_orm::{
+    ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
+    sea_query::OnConflict,
+};
 
 use super::entity::sessions::{ActiveModel, Column, Entity, Model};
 use crate::{
@@ -81,6 +84,28 @@ pub async fn delete(session_id: &str) -> Result<(), errors::Error> {
         .exec(client)
         .await?;
     Ok(())
+}
+
+/// Removes and returns a session in one transaction.
+pub async fn take(session_id: &str) -> Result<Option<Model>, errors::Error> {
+    let client = get_orm_client_rw().await;
+    let txn = client.begin().await?;
+    let mut session = Entity::find()
+        .filter(Column::SessionId.eq(session_id))
+        .lock_exclusive()
+        .one(&txn)
+        .await?;
+    if session.is_some() {
+        let deleted = Entity::delete_many()
+            .filter(Column::SessionId.eq(session_id))
+            .exec(&txn)
+            .await?;
+        if deleted.rows_affected != 1 {
+            session = None;
+        }
+    }
+    txn.commit().await?;
+    Ok(session)
 }
 
 /// Lists all sessions

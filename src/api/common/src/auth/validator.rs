@@ -1303,14 +1303,15 @@ async fn session_grants_token(session_id: &str, token: &str) -> bool {
     matches!(db::session::get(session_id).await, Ok(stored) if stored == token)
 }
 
-fn community_user_for_path(db_user: DBUser, path: &str) -> Option<User> {
+fn community_user_for_path(db_user: DBUser, path: &str, is_root: bool) -> Option<User> {
     let is_allowed_role = |user: &User| {
         !matches!(
             user.role,
             UserRole::ServiceAccount | UserRole::SreAgent | UserRole::User
         )
     };
-    if path.split('/').next_back() == Some("organizations") {
+    if path.split('/').next_back() == Some("organizations") || is_root || is_org_agnostic_path(path)
+    {
         let users = db_user
             .get_all_users()
             .into_iter()
@@ -1339,7 +1340,7 @@ async fn validate_community_session(
     let path = routed_path(uri_path.strip_prefix(path_prefix).unwrap_or(uri_path));
     let user = db::user::get_user_by_email(email)
         .await
-        .and_then(|user| community_user_for_path(user, path))
+        .and_then(|user| community_user_for_path(user, path, is_root_user(email)))
         .ok_or_else(|| AuthError::Unauthorized("Unauthorized Access".to_string()))?;
 
     if !check_permissions(
@@ -3092,7 +3093,7 @@ CN5lTowpVXP2OIiiNTGa75Fj
     }
 
     #[test]
-    fn community_session_resolves_org_lists_and_rejects_login_only_roles() {
+    fn community_session_resolves_org_lists_root_and_org_agnostic_paths() {
         let db_user = DBUser {
             email: "viewer@example.com".to_string(),
             first_name: "View".to_string(),
@@ -3119,12 +3120,25 @@ CN5lTowpVXP2OIiiNTGa75Fj
             password_ext: None,
         };
 
-        let org_list_user = community_user_for_path(db_user.clone(), "organizations").unwrap();
+        let org_list_user =
+            community_user_for_path(db_user.clone(), "organizations", false).unwrap();
         assert_eq!(org_list_user.org, "acme");
         assert_eq!(org_list_user.role, UserRole::Viewer);
-        assert!(community_user_for_path(db_user.clone(), "login-only/streams").is_none());
+        assert!(community_user_for_path(db_user.clone(), "login-only/streams", false).is_none());
         assert_eq!(
-            community_user_for_path(db_user, "acme/streams")
+            community_user_for_path(db_user.clone(), "license", false)
+                .unwrap()
+                .role,
+            UserRole::Viewer
+        );
+        assert_eq!(
+            community_user_for_path(db_user.clone(), "other/streams", true)
+                .unwrap()
+                .role,
+            UserRole::Viewer
+        );
+        assert_eq!(
+            community_user_for_path(db_user, "acme/streams", false)
                 .unwrap()
                 .role,
             UserRole::Viewer
