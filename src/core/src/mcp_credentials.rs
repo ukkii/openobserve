@@ -22,6 +22,57 @@ use sha2::{Digest, Sha256};
 pub const TOKEN_PREFIX: &str = "o2mcp.";
 pub const SESSION_PREFIX: &str = "mcp:";
 pub const LIFETIME_SECONDS: i64 = 86_400;
+const READ_GET_ROUTES: &[&str] = &[
+    "/{org_id}/streams",
+    "/{org_id}/streams/{stream_name}/schema",
+    "/{org_id}/metrics/{metric_name}/usage",
+    "/{org_id}/metrics/usage",
+    "/{org_id}/traces/time_range",
+    "/{org_id}/{stream_name}/traces/latest",
+    "/{org_id}/{stream_name}/traces/latest_stream",
+    "/{org_id}/{stream_name}/traces/session",
+    "/{org_id}/{stream_name}/traces/session/details",
+    "/{org_id}/{stream_name}/traces/user",
+    "/{org_id}/{stream_name}/traces/time_range",
+    "/{org_id}/{stream_name}/traces/{trace_id}/details",
+    "/{org_id}/{stream_name}/traces/{trace_id}/dag",
+    "/{org_id}/{stream_name}/profiles/meta",
+    "/{org_id}/{stream_name}/profiles/tag_values",
+    "/{org_id}/{stream_name}/profiles/series",
+    "/{org_id}/{stream_name}/profiles/merge",
+    "/{org_id}/prometheus/api/v1/query",
+    "/{org_id}/prometheus/api/v1/query_range",
+    "/{org_id}/prometheus/api/v1/query_exemplars",
+    "/{org_id}/prometheus/api/v1/metadata",
+    "/{org_id}/prometheus/api/v1/series",
+    "/{org_id}/prometheus/api/v1/labels",
+    "/{org_id}/prometheus/api/v1/label/{label_name}/values",
+    "/{org_id}/prometheus/api/v1/format_query",
+    "/{org_id}/{stream_name}/_around",
+    "/{org_id}/{stream_name}/_values",
+    "/{org_id}/{stream_names}/_around_multi",
+];
+const READ_POST_ROUTES: &[&str] = &[
+    "/{org_id}/_search",
+    "/{org_id}/_search_partition",
+    "/{org_id}/_search_multi",
+    "/{org_id}/_search_multi_stream",
+    "/{org_id}/_search_partition_multi",
+    "/{org_id}/_search_stream",
+    "/{org_id}/_values_stream",
+    "/{org_id}/result_schema",
+    "/{org_id}/{stream_name}/_around",
+    "/{org_id}/{stream_name}/profiles/series",
+    "/{org_id}/{stream_name}/profiles/merge",
+    "/{org_id}/{stream_name}/profiles/diff",
+    "/{org_id}/prometheus/api/v1/query",
+    "/{org_id}/prometheus/api/v1/query_range",
+    "/{org_id}/prometheus/api/v1/query_exemplars",
+    "/{org_id}/prometheus/api/v1/series",
+    "/{org_id}/prometheus/api/v1/labels",
+    "/{org_id}/prometheus/api/v1/format_query",
+    "/{org_id}/prometheus/api/v1/parse_tree",
+];
 
 #[derive(Deserialize, Serialize)]
 struct Identity {
@@ -137,6 +188,18 @@ pub fn self_service(method: &str, template: &str) -> bool {
 
 pub fn transport(method: &str, template: &str) -> bool {
     matches!(method, "GET" | "POST" | "DELETE") && route_template(template) == "/{org_id}/mcp"
+}
+
+pub fn request_allowed(method: &str, template: &str) -> bool {
+    if transport(method, template) {
+        return true;
+    }
+    let path = route_template(template);
+    match method {
+        "GET" | "HEAD" => READ_GET_ROUTES.contains(&path),
+        "POST" => READ_POST_ROUTES.contains(&path),
+        _ => false,
+    }
 }
 
 fn session_key(encoded: &str) -> String {

@@ -111,7 +111,9 @@ community role policy rejects. The replacement provides:
 
 - A dedicated credential per user and organization, available to active users
   with supported roles and actual organization membership, including Viewer.
-- Read-only scope bounded by the owner's live permissions and organization.
+- Read-only telemetry scope bounded by the owner's live permissions and
+  organization, with an explicit route allowlist that excludes credentials,
+  management settings, destinations, pipelines, and future unreviewed APIs.
 - A 24-hour lifetime, self-service revocation, and replacement of the previous
   credential when regenerated.
 - Cryptographic secrets with only their digest persisted in existing session
@@ -121,6 +123,8 @@ community role policy rejects. The replacement provides:
   execution cannot bypass the token's read-only scope.
 - Self-service issuance and revocation through the community credential
   endpoints, without enabling community ServiceAccount access.
+- Expired UI credentials are removed on remount, while displayed, and before
+  another generation attempt, restoring the token generation action.
 
 Implementation is in `src/core/src/mcp_credentials.rs`, API/auth handlers, and
 `web/src/composables/useMcpCredential.ts`. The coder verified debug `cargo build`,

@@ -1478,10 +1478,7 @@ async fn validate_mcp_credential(
     let (email, role) = mcp_credentials::validate(token, &org)
         .await
         .map_err(|_| AuthError::Unauthorized("Invalid MCP credential".to_string()))?;
-    let transport = mcp_credentials::transport(&auth_info.method, &auth_info.o2_type);
-    if !transport
-        && !openobserve_core::authz::viewer_request_allowed(&auth_info.method, &auth_info.o2_type)
-    {
+    if !mcp_credentials::request_allowed(&auth_info.method, &auth_info.o2_type) {
         return Err(AuthError::Forbidden(
             "MCP credential is read-only".to_string(),
         ));
@@ -3193,7 +3190,12 @@ CN5lTowpVXP2OIiiNTGa75Fj
         organization::check_and_create_org_without_ofga(&org)
             .await
             .unwrap();
-        for role in [UserRole::Viewer, UserRole::Editor, UserRole::Admin] {
+        for role in [
+            UserRole::Viewer,
+            UserRole::Editor,
+            UserRole::Admin,
+            UserRole::Root,
+        ] {
             let email = format!("{role}-{org}@example.com").to_lowercase();
             seed_user_without_password_ext(&org, &email, role.clone(), "Complexpass#123", "").await;
             let issued = openobserve_core::mcp_credentials::issue(&email, &org)
@@ -3212,6 +3214,38 @@ CN5lTowpVXP2OIiiNTGa75Fj
                 ),
                 (Method::DELETE, "streams", "/{org_id}/streams", false),
                 (Method::GET, "passcode", "/{org_id}/passcode", false),
+                (
+                    Method::GET,
+                    "ingestion-tokens",
+                    "/{org_id}/ingestion-tokens",
+                    false,
+                ),
+                (
+                    Method::GET,
+                    "service_accounts",
+                    "/{org_id}/service_accounts",
+                    false,
+                ),
+                (
+                    Method::GET,
+                    "settings/v2/key",
+                    "/{org_id}/settings/v2/{key}",
+                    false,
+                ),
+                (
+                    Method::GET,
+                    "alerts/destinations",
+                    "/{org_id}/alerts/destinations",
+                    false,
+                ),
+                (Method::GET, "pipelines", "/{org_id}/pipelines", false),
+                (Method::GET, "cipher_keys", "/{org_id}/cipher_keys", false),
+                (
+                    Method::GET,
+                    "future_secret_api",
+                    "/{org_id}/future_secret_api",
+                    false,
+                ),
             ] {
                 let req = RequestData {
                     uri: format!("/{org}/{suffix}").parse().unwrap(),

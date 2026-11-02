@@ -13,8 +13,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Mints a dedicated MCP service account and, under RBAC, joins it to one shared read-only role per org.
-
 import { ref, watch } from "vue";
 import config from "@/aws-exports";
 import http from "@/services/http";
@@ -69,13 +67,35 @@ export function useMcpCredential() {
 
   const generating = ref(false);
   const error = ref("");
-  const credential = ref<McpCredential | null>(sessionCredentials.get(cacheKey()) ?? null);
-  watch(cacheKey, (key) => {
+  const cachedCredential = (key: string): McpCredential | null => {
     const cached = sessionCredentials.get(key);
-    credential.value =
-      cached && (!cached.expiresAt || cached.expiresAt > Date.now() * 1000) ? cached : null;
+    if (cached?.expiresAt && cached.expiresAt <= Date.now() * 1000) {
+      sessionCredentials.delete(key);
+      return null;
+    }
+    return cached ?? null;
+  };
+  const credential = ref<McpCredential | null>(cachedCredential(cacheKey()));
+  watch(cacheKey, (key) => {
+    credential.value = cachedCredential(key);
     error.value = "";
   });
+  watch(
+    credential,
+    (value, _previous, onCleanup) => {
+      if (!value?.expiresAt) return;
+      const key = cacheKey();
+      const timer = setTimeout(
+        () => {
+          if (sessionCredentials.get(key)?.token === value.token) sessionCredentials.delete(key);
+          if (credential.value?.token === value.token) credential.value = null;
+        },
+        Math.max(0, value.expiresAt / 1000 - Date.now()),
+      );
+      onCleanup(() => clearTimeout(timer));
+    },
+    { immediate: true, flush: "sync" },
+  );
 
   const revoke = async () => {
     if (!community) return;
@@ -159,9 +179,8 @@ export function useMcpCredential() {
   const generate = async (): Promise<McpCredential | null> => {
     const org = currentOrg();
     const key = cacheKey();
-    const cached = sessionCredentials.get(cacheKey());
-    if (cached && (!cached.expiresAt || cached.expiresAt > Date.now() * 1000)) {
-      credential.value = cached;
+    credential.value = cachedCredential(key);
+    if (credential.value) {
       return credential.value;
     }
 
