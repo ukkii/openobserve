@@ -129,7 +129,7 @@ community role policy rejects. The replacement provides:
 Implementation is in `src/core/src/mcp_credentials.rs`, API/auth handlers, and
 `web/src/composables/useMcpCredential.ts`. The coder verified debug `cargo build`,
 the exact workspace/all-target clippy command, frontend `verify` and build,
-38 MCP UI tests, and targeted Rust lifecycle/authentication tests.
+40 MCP UI tests, and targeted Rust lifecycle/authentication tests.
 
 An isolated local HTTP server verified Viewer and Admin self-issuance,
 `initialize`, `tools/list`, `StreamList`, `StreamSchema`, and `SearchSQL` returning
@@ -149,9 +149,11 @@ user/organization credential slot. It was test interference with the active
 credential, rather than a credential-validation failure. Tests that rotate or
 revoke credentials must use an isolated user/organization slot.
 
-These results are implementation and runtime checks, not independent review
-approval. External review remains pending because the execution environment's
-consent/automatic approval checks have not permitted that review run.
+Independent review identified credential-reading API access and stale expired
+UI credentials. Both findings were reproduced and fixed. Isolated Root/Admin
+HTTP checks verify denied credential/configuration reads, no default-token
+creation on denial, retained telemetry queries, and unchanged interactive
+credential management. Follow-up independent review remains pending.
 
 ## Local Docker preview and demo data
 
