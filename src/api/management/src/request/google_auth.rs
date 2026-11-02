@@ -36,7 +36,7 @@ use sha2::{Digest, Sha256};
 use time::{Duration as CookieDuration, OffsetDateTime};
 use url::Url;
 
-use crate::request::public_rate_limit::{Counters, client_ip, too_many_requests};
+use crate::request::public_rate_limit::{Counters, too_many_requests};
 
 const DISCOVERY_URL: &str = "https://accounts.google.com/.well-known/openid-configuration";
 const STATE_COOKIE: &str = "o2_google_state";
@@ -44,10 +44,8 @@ const SESSION_COOKIE: &str = "o2_session";
 const LOGIN_TTL_SECS: u64 = 600;
 const LOGIN_RATE_WINDOW: Duration = Duration::from_secs(60);
 
-static JWKS_CACHE: LazyLock<tokio::sync::RwLock<Option<CachedJwks>>> =
-    LazyLock::new(|| tokio::sync::RwLock::new(None));
-static DISCOVERY_CACHE: LazyLock<tokio::sync::RwLock<Option<CachedDiscovery>>> =
-    LazyLock::new(|| tokio::sync::RwLock::new(None));
+static GOOGLE_METADATA_CACHE: LazyLock<GoogleMetadataCache> =
+    LazyLock::new(GoogleMetadataCache::default);
 static LOGIN_ATTEMPTS: LazyLock<Counters> = LazyLock::new(Counters::default);
 
 #[derive(Deserialize, Serialize)]
@@ -64,6 +62,12 @@ struct CachedJwks {
 struct CachedDiscovery {
     value: Discovery,
     expires_at: Instant,
+}
+
+#[derive(Default)]
+struct GoogleMetadataCache {
+    discovery: tokio::sync::RwLock<Option<CachedDiscovery>>,
+    jwks: tokio::sync::RwLock<Option<CachedJwks>>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -93,6 +97,22 @@ struct Claims {
     email_verified: bool,
 }
 
+#[derive(Debug, Eq, PartialEq)]
+enum LoginRateLimit {
+    Allowed,
+    Limited,
+    MissingIp,
+}
+
+#[derive(Clone)]
+struct CallbackRuntime {
+    client_id: String,
+    client_secret: String,
+    redirect_url: String,
+    cookie_ttl_secs: i64,
+    console_url: String,
+}
+
 #[derive(Serialize)]
 pub struct CommunitySession {
     email: String,
@@ -105,17 +125,21 @@ pub fn is_enabled() -> bool {
 }
 
 pub async fn login(cookies: CookieJar, ip: Option<Extension<RealIp>>) -> Response {
-    if login_rate_limited(
+    match login_rate_limit(
         ip.map(|value| value.0),
         &LOGIN_ATTEMPTS,
         get_config().auth.google_login_rpm,
     ) {
-        return too_many_requests(LOGIN_RATE_WINDOW);
+        LoginRateLimit::Allowed => {}
+        LoginRateLimit::Limited => return too_many_requests(LOGIN_RATE_WINDOW),
+        LoginRateLimit::MissingIp => {
+            return (StatusCode::SERVICE_UNAVAILABLE, "Client IP is unavailable").into_response();
+        }
     }
     let Some((client_id, _, redirect_url)) = valid_config() else {
         return (StatusCode::NOT_FOUND, "Google login is disabled").into_response();
     };
-    let discovery = match fetch_discovery().await {
+    let discovery = match fetch_discovery(&GOOGLE_METADATA_CACHE).await {
         Ok(discovery) => discovery,
         Err(error) => return auth_error(StatusCode::BAD_GATEWAY, error),
     };
@@ -149,77 +173,13 @@ pub async fn login(cookies: CookieJar, ip: Option<Extension<RealIp>>) -> Respons
 }
 
 pub async fn callback(cookies: CookieJar, Query(query): Query<CallbackQuery>) -> Response {
-    let config = valid_config();
-    let secure = config
-        .as_ref()
-        .is_none_or(|(_, _, redirect_url)| redirect_is_secure(redirect_url));
-    let clear_state = expired_cookie(STATE_COOKIE, secure);
-    if query.error.is_some() {
-        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
-    }
-    let Some(state) = query.state.as_deref() else {
-        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
-    };
-    if !state_matches(&cookies, state) {
-        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
-    }
-    let Some((client_id, client_secret, redirect_url)) = config else {
-        return (cookies.add(clear_state), StatusCode::NOT_FOUND).into_response();
-    };
-    let Ok(pending) = consume_pending(state).await else {
-        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
-    };
-    let Some(code) = query.code.as_deref() else {
-        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
-    };
-
-    let discovery = match fetch_discovery().await {
-        Ok(discovery) => discovery,
-        Err(error) => return auth_error(StatusCode::BAD_GATEWAY, error),
-    };
-    let token = match exchange_code(
-        &discovery,
-        code,
-        &pending.verifier,
-        &client_id,
-        &client_secret,
-        &redirect_url,
+    callback_with_runtime(
+        cookies,
+        query,
+        configured_callback_runtime(),
+        &GOOGLE_METADATA_CACHE,
     )
     .await
-    {
-        Ok(token) => token,
-        Err(error) => return auth_error(StatusCode::UNAUTHORIZED, error),
-    };
-    let claims =
-        match validate_id_token(&token.id_token, &discovery, &client_id, &pending.nonce).await {
-            Ok(claims) => claims,
-            Err(error) => return auth_error(StatusCode::UNAUTHORIZED, error),
-        };
-    let email = claims.email.trim().to_lowercase();
-    if !claims.email_verified || !existing_login_user(&email).await {
-        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
-    }
-
-    let now = chrono::Utc::now().timestamp();
-    let ttl_secs = get_config().auth.cookie_max_age.max(1);
-    let expires_at = session_expiry(now, ttl_secs);
-    let session_id = config::utils::rand::random_hex(32);
-    if let Err(error) = db::session::set_with_expiry(
-        &session_id,
-        &format!("Community {email}"),
-        expires_at.saturating_mul(1_000_000),
-    )
-    .await
-    {
-        return auth_error(StatusCode::INTERNAL_SERVER_ERROR, error);
-    }
-
-    let jar = cookies.add(clear_state).add(session_cookie(
-        session_id,
-        ttl_secs,
-        redirect_is_secure(&redirect_url),
-    ));
-    (jar, Redirect::temporary(&console_url())).into_response()
 }
 
 pub async fn session(cookies: CookieJar) -> Response {
@@ -246,6 +206,91 @@ pub async fn session(cookies: CookieJar) -> Response {
     .into_response()
 }
 
+async fn callback_with_runtime(
+    cookies: CookieJar,
+    query: CallbackQuery,
+    runtime: Option<CallbackRuntime>,
+    metadata: &GoogleMetadataCache,
+) -> Response {
+    let secure = runtime
+        .as_ref()
+        .is_none_or(|runtime| redirect_is_secure(&runtime.redirect_url));
+    let clear_state = expired_cookie(STATE_COOKIE, secure);
+    if query.error.is_some() {
+        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
+    }
+    let Some(state) = query.state.as_deref() else {
+        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
+    };
+    if !state_matches(&cookies, state) {
+        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
+    }
+    let Some(runtime) = runtime else {
+        return (cookies.add(clear_state), StatusCode::NOT_FOUND).into_response();
+    };
+    let Ok(pending) = consume_pending(state).await else {
+        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
+    };
+    let Some(code) = query.code.as_deref() else {
+        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
+    };
+
+    let discovery = match fetch_discovery(metadata).await {
+        Ok(discovery) => discovery,
+        Err(error) => return auth_error(StatusCode::BAD_GATEWAY, error),
+    };
+    let token = match exchange_code(
+        &discovery,
+        code,
+        &pending.verifier,
+        &runtime.client_id,
+        &runtime.client_secret,
+        &runtime.redirect_url,
+    )
+    .await
+    {
+        Ok(token) => token,
+        Err(error) => return auth_error(StatusCode::UNAUTHORIZED, error),
+    };
+    let claims = match validate_id_token(
+        &token.id_token,
+        &discovery,
+        &runtime.client_id,
+        &pending.nonce,
+        metadata,
+    )
+    .await
+    {
+        Ok(claims) => claims,
+        Err(error) => return auth_error(StatusCode::UNAUTHORIZED, error),
+    };
+    let email = claims.email.trim().to_lowercase();
+    if !claims.email_verified || !existing_login_user(&email).await {
+        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    let ttl_secs = runtime.cookie_ttl_secs.max(1);
+    let expires_at = session_expiry(now, ttl_secs);
+    let session_id = config::utils::rand::random_hex(32);
+    if let Err(error) = db::session::set_with_expiry(
+        &session_id,
+        &format!("Community {email}"),
+        expires_at.saturating_mul(1_000_000),
+    )
+    .await
+    {
+        return auth_error(StatusCode::INTERNAL_SERVER_ERROR, error);
+    }
+
+    let jar = cookies.add(clear_state).add(session_cookie(
+        session_id,
+        ttl_secs,
+        redirect_is_secure(&runtime.redirect_url),
+    ));
+    (jar, Redirect::temporary(&runtime.console_url)).into_response()
+}
+
 fn valid_config() -> Option<(String, String, String)> {
     let cfg = get_config();
     let client_id = cfg.auth.google_client_id.trim();
@@ -259,6 +304,17 @@ fn valid_config() -> Option<(String, String, String)> {
         client_secret.to_string(),
         redirect_url.to_string(),
     ))
+}
+
+fn configured_callback_runtime() -> Option<CallbackRuntime> {
+    let (client_id, client_secret, redirect_url) = valid_config()?;
+    Some(CallbackRuntime {
+        client_id,
+        client_secret,
+        redirect_url,
+        cookie_ttl_secs: get_config().auth.cookie_max_age,
+        console_url: console_url(),
+    })
 }
 
 fn valid_redirect_url(value: &str) -> bool {
@@ -292,8 +348,8 @@ fn valid_google_endpoint(value: &str) -> bool {
     })
 }
 
-async fn fetch_discovery() -> Result<Discovery, anyhow::Error> {
-    if let Some(cached) = DISCOVERY_CACHE.read().await.as_ref()
+async fn fetch_discovery(metadata: &GoogleMetadataCache) -> Result<Discovery, anyhow::Error> {
+    if let Some(cached) = metadata.discovery.read().await.as_ref()
         && cached.expires_at > Instant::now()
     {
         return Ok(cached.value.clone());
@@ -316,7 +372,7 @@ async fn fetch_discovery() -> Result<Discovery, anyhow::Error> {
     {
         anyhow::bail!("Google discovery metadata is invalid");
     }
-    *DISCOVERY_CACHE.write().await = max_age.map(|seconds| CachedDiscovery {
+    *metadata.discovery.write().await = max_age.map(|seconds| CachedDiscovery {
         value: discovery.clone(),
         expires_at: Instant::now() + Duration::from_secs(seconds),
     });
@@ -348,8 +404,18 @@ fn pending_key(state: &str) -> String {
     format!("{}{state}", db::session::PENDING_LOGIN_PREFIX)
 }
 
-fn login_rate_limited(ip: Option<RealIp>, attempts: &Counters, rpm: u32) -> bool {
-    rpm != 0 && attempts.over_budget(&client_ip(ip), LOGIN_RATE_WINDOW, rpm)
+fn login_rate_limit(ip: Option<RealIp>, attempts: &Counters, rpm: u32) -> LoginRateLimit {
+    if rpm == 0 {
+        return LoginRateLimit::Allowed;
+    }
+    let Some(ip) = ip else {
+        return LoginRateLimit::MissingIp;
+    };
+    if attempts.over_budget(&ip.0.to_string(), LOGIN_RATE_WINDOW, rpm) {
+        LoginRateLimit::Limited
+    } else {
+        LoginRateLimit::Allowed
+    }
 }
 
 fn session_expiry(now: i64, ttl_secs: i64) -> i64 {
@@ -411,8 +477,10 @@ async fn validate_id_token(
     discovery: &Discovery,
     client_id: &str,
     nonce: &str,
+    metadata: &GoogleMetadataCache,
 ) -> Result<Claims, anyhow::Error> {
-    let jwks: jwk::JwkSet = serde_json::from_str(&fetch_jwks(&discovery.jwks_uri).await?)?;
+    let jwks: jwk::JwkSet =
+        serde_json::from_str(&fetch_jwks(&discovery.jwks_uri, metadata).await?)?;
     validate_id_token_with_jwks(token, discovery, client_id, nonce, &jwks)
 }
 
@@ -455,8 +523,8 @@ fn validate_id_token_with_jwks(
     Ok(claims)
 }
 
-async fn fetch_jwks(uri: &str) -> Result<String, anyhow::Error> {
-    if let Some(cached) = JWKS_CACHE.read().await.as_ref()
+async fn fetch_jwks(uri: &str, metadata: &GoogleMetadataCache) -> Result<String, anyhow::Error> {
+    if let Some(cached) = metadata.jwks.read().await.as_ref()
         && cached.expires_at > Instant::now()
     {
         return Ok(cached.body.clone());
@@ -473,7 +541,7 @@ async fn fetch_jwks(uri: &str) -> Result<String, anyhow::Error> {
         .and_then(cache_max_age);
     let body = response.text().await?;
     let _: jwk::JwkSet = serde_json::from_str(&body)?;
-    *JWKS_CACHE.write().await = max_age.map(|seconds| CachedJwks {
+    *metadata.jwks.write().await = max_age.map(|seconds| CachedJwks {
         body: body.clone(),
         expires_at: Instant::now() + Duration::from_secs(seconds),
     });
@@ -590,14 +658,6 @@ mod tests {
         token: Arc<tokio::sync::RwLock<String>>,
     }
 
-    struct ConfigRestore(Arc<config::Config>);
-
-    impl Drop for ConfigRestore {
-        fn drop(&mut self) {
-            config::CONFIG.store(self.0.clone());
-        }
-    }
-
     async fn token_endpoint(State(state): State<TokenEndpoint>) -> Json<serde_json::Value> {
         state.calls.fetch_add(1, Ordering::SeqCst);
         Json(serde_json::json!({ "id_token": state.token.read().await.clone() }))
@@ -678,42 +738,51 @@ mod tests {
         (state, format!("http://{address}/token"), server)
     }
 
-    async fn prepare_callback(token_endpoint: String) -> ConfigRestore {
-        let original = config::CONFIG.load_full();
-        let mut cfg = config::Config::default();
-        cfg.auth.google_client_id = CLIENT_ID.to_string();
-        cfg.auth.google_client_secret = "secret".to_string();
-        cfg.auth.google_redirect_url = "http://localhost:5080/config/google_callback".to_string();
-        cfg.auth.cookie_max_age = 3600;
-        cfg.common.web_url = "http://localhost:5080".to_string();
-        config::CONFIG.store(Arc::new(cfg));
-        *DISCOVERY_CACHE.write().await = Some(CachedDiscovery {
+    async fn prepare_callback(token_endpoint: String) -> (CallbackRuntime, GoogleMetadataCache) {
+        let metadata = GoogleMetadataCache::default();
+        *metadata.discovery.write().await = Some(CachedDiscovery {
             value: Discovery {
                 token_endpoint,
                 ..discovery()
             },
             expires_at: Instant::now() + Duration::from_secs(60),
         });
-        *JWKS_CACHE.write().await = Some(CachedJwks {
+        *metadata.jwks.write().await = Some(CachedJwks {
             body: serde_json::to_string(&jwks()).unwrap(),
             expires_at: Instant::now() + Duration::from_secs(60),
         });
-        ConfigRestore(original)
+        (
+            CallbackRuntime {
+                client_id: CLIENT_ID.to_string(),
+                client_secret: "secret".to_string(),
+                redirect_url: "http://localhost:5080/config/google_callback".to_string(),
+                cookie_ttl_secs: 3600,
+                console_url: "http://localhost:5080/web/".to_string(),
+            },
+            metadata,
+        )
     }
 
-    async fn run_callback(state: &str, nonce: &str) -> Response {
+    async fn run_callback(
+        state: &str,
+        nonce: &str,
+        runtime: &CallbackRuntime,
+        metadata: &GoogleMetadataCache,
+    ) -> Response {
         let pending = PendingLogin {
             nonce: nonce.to_string(),
             verifier: "verifier".to_string(),
         };
         store_pending(state, &pending).await.unwrap();
-        callback(
+        callback_with_runtime(
             CookieJar::new().add(state_cookie(state.to_string(), false)),
-            Query(CallbackQuery {
+            CallbackQuery {
                 code: Some("code".to_string()),
                 state: Some(state.to_string()),
                 error: None,
-            }),
+            },
+            Some(runtime.clone()),
+            metadata,
         )
         .await
     }
@@ -803,12 +872,35 @@ mod tests {
     }
 
     #[test]
-    fn google_login_is_rate_limited_per_client_before_creating_state() {
+    fn google_login_rate_limit_is_per_client_and_fails_safe_without_an_ip() {
         let attempts = Counters::default();
-        assert!(!login_rate_limited(None, &attempts, 2));
-        assert!(!login_rate_limited(None, &attempts, 2));
-        assert!(login_rate_limited(None, &attempts, 2));
-        assert!(!login_rate_limited(None, &Counters::default(), 0));
+        let first = RealIp("192.0.2.1".parse().unwrap());
+        let second = RealIp("192.0.2.2".parse().unwrap());
+
+        assert_eq!(
+            login_rate_limit(None, &attempts, 2),
+            LoginRateLimit::MissingIp
+        );
+        assert_eq!(
+            login_rate_limit(Some(first), &attempts, 2),
+            LoginRateLimit::Allowed
+        );
+        assert_eq!(
+            login_rate_limit(Some(first), &attempts, 2),
+            LoginRateLimit::Allowed
+        );
+        assert_eq!(
+            login_rate_limit(Some(first), &attempts, 2),
+            LoginRateLimit::Limited
+        );
+        assert_eq!(
+            login_rate_limit(Some(second), &attempts, 2),
+            LoginRateLimit::Allowed
+        );
+        assert_eq!(
+            login_rate_limit(None, &Counters::default(), 0),
+            LoginRateLimit::Allowed
+        );
     }
 
     #[test]
@@ -858,11 +950,9 @@ mod tests {
 
     #[tokio::test]
     async fn callback_rejects_nonexistent_users_and_consumed_state_replay() {
-        static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-        let _guard = LOCK.lock().await;
         meta_store().await;
         let (endpoint, token_url, server) = callback_environment().await;
-        let _restore = prepare_callback(token_url).await;
+        let (runtime, metadata) = prepare_callback(token_url).await;
 
         let missing_email = format!("missing-callback-{}@example.com", config::ider::uuid());
         let missing_nonce = "missing-nonce";
@@ -872,7 +962,7 @@ mod tests {
             ..valid_claims()
         };
         *endpoint.token.write().await = signed(&missing_claims, Some(KID));
-        let missing = run_callback("missing-state", missing_nonce).await;
+        let missing = run_callback("missing-state", missing_nonce, &runtime, &metadata).await;
         assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
 
         let allowed_email = format!("allowed-callback-{}@example.com", config::ider::uuid());
@@ -907,27 +997,27 @@ mod tests {
         )
         .await
         .unwrap();
-        let query = || {
-            Query(CallbackQuery {
-                code: Some("code".to_string()),
-                state: Some("allowed-state".to_string()),
-                error: None,
-            })
+        let query = || CallbackQuery {
+            code: Some("code".to_string()),
+            state: Some("allowed-state".to_string()),
+            error: None,
         };
         assert_eq!(
-            callback(cookies.clone(), query()).await.status(),
+            callback_with_runtime(cookies.clone(), query(), Some(runtime.clone()), &metadata,)
+                .await
+                .status(),
             StatusCode::TEMPORARY_REDIRECT
         );
         assert_eq!(
-            callback(cookies, query()).await.status(),
+            callback_with_runtime(cookies, query(), Some(runtime), &metadata)
+                .await
+                .status(),
             StatusCode::UNAUTHORIZED
         );
         assert_eq!(endpoint.calls.load(Ordering::SeqCst), 2);
 
         db::user::delete(&allowed_email).await.unwrap();
         db::organization::delete_org(&org_id).await.unwrap();
-        *DISCOVERY_CACHE.write().await = None;
-        *JWKS_CACHE.write().await = None;
         server.abort();
     }
 

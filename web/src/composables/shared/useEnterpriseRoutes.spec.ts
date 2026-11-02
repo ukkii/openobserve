@@ -40,4 +40,34 @@ describe("community routes", () => {
       ]),
     );
   });
+
+  it("does not register premium routes in the community router", () => {
+    const routes = useEnterpriseRoutes();
+    const names = routes.flatMap((route: any) => [
+      route.name,
+      ...(route.children ?? []).map((child: any) => child.name),
+    ]);
+
+    const premium = [
+      "synthetic-private-location",
+      "onCallResponses",
+      "onCallResponseDetail",
+      "onCallMine",
+      "onCallTeams",
+      "onCallTeamDetail",
+      "onCallPolicies",
+      "onCallRouting",
+      "incidentList",
+      "incidentDetail",
+      "autoobserve",
+      "fleetConfigEditor",
+      "fleet",
+      "workflows",
+      "createWorkflow",
+      "workflowEditor",
+      "workflowRuns",
+      "invitations",
+    ];
+    expect(names.filter((name: string) => premium.includes(name))).toEqual([]);
+  });
 });

@@ -82,6 +82,14 @@ fn custom_roles_differ(requested: &[String], current: &[String]) -> bool {
     requested != current.iter().collect()
 }
 
+fn role_request_changes(
+    current: UserRole,
+    requested: &common::meta::user::UserRoleRequest,
+) -> bool {
+    let requested = UserOrgRole::from(requested);
+    requested.base_role != current || requested.custom_role.is_some()
+}
+
 fn redact_token(token: &str) -> String {
     if token.is_empty() {
         return String::new();
@@ -365,15 +373,10 @@ pub async fn update_user(
         return Ok(MetaHttpResponse::not_found("User not found"));
     };
 
-    #[cfg(not(feature = "enterprise"))]
-    let role_changes = community_role
-        .as_ref()
-        .is_some_and(|role| role.base_role != local_user.role);
-    #[cfg(feature = "enterprise")]
     let role_changes = user
         .role
         .as_ref()
-        .is_some_and(|role| UserOrgRole::from(role).base_role != local_user.role);
+        .is_some_and(|role| role_request_changes(local_user.role.clone(), role));
 
     #[cfg(not(feature = "cloud"))]
     if local_user.is_external {
@@ -2490,6 +2493,16 @@ mod tests {
                 .role,
             UserRole::Viewer
         );
+    }
+
+    #[test]
+    fn enterprise_custom_role_request_counts_as_a_role_change() {
+        let request = common::meta::user::UserRoleRequest {
+            role: UserRole::Viewer.to_string(),
+            custom: Some(vec!["org_admin_custom".to_string()]),
+        };
+
+        assert!(role_request_changes(UserRole::Viewer, &request));
     }
 
     #[cfg(not(feature = "enterprise"))]

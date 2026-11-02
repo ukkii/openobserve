@@ -40,8 +40,6 @@ use openobserve_jobs::job;
 use tokio::sync::oneshot;
 use tracing_appender::non_blocking::WorkerGuard;
 use utoipa::OpenApi;
-#[cfg(feature = "enterprise")]
-use {config::Config, o2_enterprise::enterprise::common::config::O2Config};
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -62,9 +60,6 @@ pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:16\0
 pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:16\0";
 
 async fn flush_reporting() {
-    #[cfg(feature = "enterprise")]
-    audit::flush().await;
-
     usage_reporting::flush().await;
 }
 
@@ -116,23 +111,7 @@ async fn run() -> Result<(), anyhow::Error> {
         log::info!("Tracer provider initialized successfully");
         None
     } else {
-        // Check if AI tracing is enabled independently
-        #[cfg(feature = "enterprise")]
-        {
-            use o2_enterprise::enterprise::common::config::get_config as get_o2_config;
-            let o2_cfg = get_o2_config();
-
-            if o2_cfg.ai.tracing_enabled {
-                tracer_provider = Some(enable_tracing()?);
-                None
-            } else {
-                Some(setup_logs())
-            }
-        }
-        #[cfg(not(feature = "enterprise"))]
-        {
-            Some(setup_logs())
-        }
+        Some(setup_logs())
     };
 
     log::info!("Starting OpenObserve {}", config::VERSION);
@@ -184,27 +163,12 @@ async fn run() -> Result<(), anyhow::Error> {
                 job_init_tx.send(false).ok();
                 panic!("db init failed: {e}");
             }
-            // Logged, not fatal: the plan sync and the next start repair any row it misses.
-            #[cfg(feature = "cloud")]
-            if let Err(e) = o2_enterprise::enterprise::cloud::reconcile_plan_rows().await {
-                log::error!("public dashboard plan rows reconcile failed: {e}");
-            }
-
             // init infra
             if let Err(e) = infra::init().await {
                 job_init_tx.send(false).ok();
                 panic!("infra init failed: {e}");
             }
 
-            // Must precede every cipher_keys read or write, including default-org creation.
-            #[cfg(feature = "enterprise")]
-            let master_key = Some(
-                o2_enterprise::enterprise::common::config::get_config()
-                    .encryption
-                    .master_key
-                    .clone(),
-            );
-            #[cfg(not(feature = "enterprise"))]
             let master_key: Option<String> = None;
             if let Err(e) = infra::table::cipher::boot(master_key.as_deref()).await {
                 job_init_tx.send(false).ok();
@@ -229,13 +193,6 @@ async fn run() -> Result<(), anyhow::Error> {
                 }
             } else {
                 log::info!("MCP is disabled, skipping MCP tool registry");
-            }
-
-            // init enterprise
-            #[cfg(feature = "enterprise")]
-            if let Err(e) = crate::init_enterprise().await {
-                job_init_tx.send(false).ok();
-                panic!("enterprise init failed: {e}");
             }
 
             // ingester init
@@ -403,24 +360,6 @@ async fn run() -> Result<(), anyhow::Error> {
     // flush usage report
     flush_reporting().await;
 
-    // flush service discovery
-    #[cfg(feature = "enterprise")]
-    {
-        log::info!("Flushing service discovery...");
-        if let Err(e) =
-            o2_enterprise::enterprise::service_streams::batch_processor::flush_all().await
-        {
-            log::error!("Failed to flush service discovery: {}", e);
-        }
-
-        log::info!("Flushing Gen-AI agent registry...");
-        if let Err(e) =
-            o2_enterprise::enterprise::llm_evaluations::agent_registry::flush_all().await
-        {
-            log::error!("Failed to flush Gen-AI agent registry: {}", e);
-        }
-    }
-
     // leave the cluster
     _ = cluster::leave().await;
     log::info!("Node left cluster");
@@ -439,72 +378,6 @@ async fn run() -> Result<(), anyhow::Error> {
 
     log::info!("server stopped");
 
-    Ok(())
-}
-
-/// Initializes enterprise features.
-#[cfg(feature = "enterprise")]
-async fn init_enterprise() -> Result<(), anyhow::Error> {
-    o2_enterprise::enterprise::search::init().await?;
-
-    if o2_enterprise::enterprise::common::config::get_config()
-        .super_cluster
-        .enabled
-    {
-        log::info!("init super cluster");
-        o2_enterprise::enterprise::super_cluster::kv::init().await?;
-        super_cluster_queue::init().await?;
-        // Composite alerts are unsupported in super-cluster mode (§18): fail
-        // closed at startup if any definitions or jobs remain, before serving.
-        if let Err(e) = openobserve_core::alerts::composite::startup_preflight().await {
-            return Err(anyhow::anyhow!(
-                "composite alerts super-cluster startup preflight failed: {e:#}"
-            ));
-        }
-    }
-
-    // Initialize enterprise AI components (agent and evaluation clients).
-    if let Err(e) = o2_enterprise::enterprise::ai::init_ai_components() {
-        log::error!("Failed to initialize enterprise AI components: {e}");
-    } else {
-        log::info!("Initialized enterprise AI components");
-    }
-
-    // check ratelimit config
-    let cfg = config::get_config();
-    let o2cfg = o2_enterprise::enterprise::common::config::get_config();
-    if let Err(e) = check_ratelimit_config(&cfg, &o2cfg) {
-        panic!("ratelimit config error: {e}");
-    }
-
-    o2_enterprise::enterprise::pipeline::pipeline_file_server::PipelineFileServer::run().await?;
-    if o2cfg.rate_limit.rate_limit_enabled && o2_openfga::config::get_config().enabled {
-        o2_ratelimit::init(
-            openobserve_api_http::handler::http::router::openapi::openapi_info().await,
-        )
-        .await?;
-    }
-
-    Ok(())
-}
-
-#[cfg(feature = "enterprise")]
-fn check_ratelimit_config(cfg: &Config, o2cfg: &O2Config) -> Result<(), anyhow::Error> {
-    if o2cfg.rate_limit.rate_limit_enabled {
-        let queue_store =
-            config::meta::queue_store::QueueStore::try_from(cfg.common.queue_store.as_str());
-        if queue_store != Ok(config::meta::queue_store::QueueStore::Nats) {
-            return Err(anyhow::anyhow!(
-                "ZO_QUEUE_STORE must be nats when ratelimit is enabled"
-            ));
-        }
-    }
-
-    if o2cfg.rate_limit.rate_limit_rule_refresh_interval < 2 {
-        return Err(anyhow::anyhow!(
-            "ratelimit rules refresh interval must be greater than or equal to 2 seconds"
-        ));
-    }
     Ok(())
 }
 

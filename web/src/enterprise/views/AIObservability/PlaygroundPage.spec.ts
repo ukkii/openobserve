@@ -433,10 +433,12 @@ describe("PlaygroundPage", () => {
     await flushPromises();
   });
 
-  it("tracks a single variant run with count 1", async () => {
+  it("runs one variant from its Run action", async () => {
     const page = vm(await mountPage());
 
     await page.onRunVariant(page.draft.variants[0].id);
+
+    expect(runPlayground).toHaveBeenCalledTimes(1);
   });
 
   it("hands the variant's config to the experiment form", async () => {

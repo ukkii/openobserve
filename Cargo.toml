@@ -23,17 +23,7 @@ publish = false
 
 [features]
 default = []
-enterprise = [
-    "audit/enterprise",
-    "openobserve-api-http/enterprise",
-    "openobserve-api-grpc/enterprise",
-    "openobserve-core/enterprise",
-    "openobserve-jobs/enterprise",
-    "super_cluster_queue/enterprise",
-    "search_service/enterprise",
-    "enrichment-data/enterprise",
-    "usage_reporting/enterprise",
-]
+enterprise = []
 vectorscan = [
     "openobserve-api-http/vectorscan",
     "openobserve-api-grpc/vectorscan",
@@ -43,12 +33,7 @@ vectorscan = [
     "search_service/vectorscan",
     "enrichment-data/vectorscan",
 ]
-cloud = [
-    "openobserve-api-http/cloud",
-    "openobserve-api-grpc/cloud",
-    "openobserve-core/cloud",
-    "openobserve-jobs/cloud",
-]
+cloud = []
 mimalloc = ["dep:mimalloc"]
 jemalloc = ["dep:tikv-jemallocator"]
 cpu-profiling = [

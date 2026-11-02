@@ -715,7 +715,9 @@ async function onRunAll() {
   }
 }
 
-async function onRunVariant(_variantId: string) {}
+async function onRunVariant(variantId: string) {
+  await runVariant(variantId);
+}
 
 function runVariant(variantId: string, skipGate = false): Promise<boolean> {
   if (!skipGate && variantRunDisabled(variantId)) return Promise.resolve(false);
