@@ -23,34 +23,38 @@ use enrichment_data::enrichment_table::geoip::{Geoip, GeoipConfig};
 
 use crate::common::{infra::config::MAXMIND_DB_CLIENT, meta::maxmind::MaxmindClient};
 
-pub async fn run() -> Result<(), anyhow::Error> {
-    let cfg = config::get_config();
-    let data_dir = Path::new(&cfg.common.mmdb_data_dir);
-    std::fs::create_dir_all(data_dir)?;
+pub async fn run() {
+    let data_dir = config::get_config().common.mmdb_data_dir.clone();
+    if let Err(error) =
+        tokio::task::spawn_blocking(move || load_from_dir(Path::new(&data_dir))).await
+    {
+        log::warn!("Failed to join local MaxMind loader: {error}");
+    }
+}
+
+fn load_from_dir(data_dir: &Path) {
     let city = data_dir.join(MMDB_CITY_FILE_NAME);
     let asn = data_dir.join(MMDB_ASN_FILE_NAME);
 
-    if load_table(&city, GEO_IP_CITY_ENRICHMENT_TABLE) {
-        match MaxmindClient::new_with_path(city.to_string_lossy().as_ref()) {
-            Ok(client) => *MAXMIND_DB_CLIENT.write().await = Some(client),
-            Err(error) => log::warn!("Failed to load local MaxMind city database: {error}"),
-        }
-    }
-    load_table(&asn, GEO_IP_ASN_ENRICHMENT_TABLE);
-    Ok(())
+    load_table(&city, GEO_IP_CITY_ENRICHMENT_TABLE, true);
+    load_table(&asn, GEO_IP_ASN_ENRICHMENT_TABLE, false);
 }
 
-fn load_table(path: &Path, table_name: &str) -> bool {
+fn load_table(path: &Path, table_name: &str, set_city_client: bool) -> bool {
     if !path.is_file() {
         log::info!("Local MaxMind database not found: {}", path.display());
         return false;
     }
     let config = GeoipConfig {
         path: path.to_string_lossy().into_owned(),
-        locale: "en".to_string(),
+        ..GeoipConfig::default()
     };
     match Geoip::new(config) {
         Ok(table) => {
+            if set_city_client {
+                let client = MaxmindClient::new_with_shared_reader(table.reader());
+                *MAXMIND_DB_CLIENT.blocking_write() = Some(client);
+            }
             transform::register_global_enrichment_table(table_name, table);
             true
         }
@@ -71,11 +75,19 @@ mod tests {
     #[test]
     fn missing_or_invalid_local_database_is_not_registered() {
         let missing = std::path::PathBuf::from("/path/that/does/not/exist.mmdb");
-        assert!(!load_table(&missing, "missing_test_table"));
+        assert!(!load_table(&missing, "missing_test_table", false));
 
         let invalid = std::env::temp_dir().join(format!("invalid-{}.mmdb", config::ider::uuid()));
         std::fs::write(&invalid, b"not a maxmind database").unwrap();
-        assert!(!load_table(&invalid, "invalid_test_table"));
+        assert!(!load_table(&invalid, "invalid_test_table", false));
         std::fs::remove_file(invalid).unwrap();
+    }
+
+    #[test]
+    fn unusable_data_directory_does_not_fail_startup() {
+        let data_dir = std::env::temp_dir().join(format!("mmdb-file-{}", config::ider::uuid()));
+        std::fs::write(&data_dir, b"not a directory").unwrap();
+        load_from_dir(&data_dir);
+        std::fs::remove_file(data_dir).unwrap();
     }
 }

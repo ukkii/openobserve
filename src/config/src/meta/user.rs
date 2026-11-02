@@ -153,10 +153,7 @@ impl FromStr for UserRole {
             "user" | "allowed_user" => Ok(UserRole::User),
             "service_account" => Ok(UserRole::ServiceAccount),
             "sre_agent" => Ok(UserRole::SreAgent),
-            #[cfg(not(feature = "enterprise"))]
-            _ => Ok(UserRole::Admin),
-            #[cfg(feature = "enterprise")]
-            _ => Ok(UserRole::User),
+            _ => Err(()),
         }
     }
 }
@@ -415,19 +412,10 @@ mod tests {
         }
 
         #[test]
-        fn test_invalid_string_defaults_to_admin() {
-            #[cfg(feature = "enterprise")]
-            assert_eq!(UserRole::from_str("invalid").unwrap(), UserRole::User);
-            #[cfg(not(feature = "enterprise"))]
-            assert_eq!(UserRole::from_str("invalid").unwrap(), UserRole::Admin);
-            #[cfg(feature = "enterprise")]
-            assert_eq!(UserRole::from_str("").unwrap(), UserRole::User);
-            #[cfg(not(feature = "enterprise"))]
-            assert_eq!(UserRole::from_str("").unwrap(), UserRole::Admin);
-            #[cfg(not(feature = "enterprise"))]
-            assert_eq!(UserRole::from_str("Admin").unwrap(), UserRole::Admin); // case sensitive
-            #[cfg(feature = "enterprise")]
-            assert_eq!(UserRole::from_str("Admin").unwrap(), UserRole::User); // case sensitive
+        fn test_invalid_string_is_rejected() {
+            assert_eq!(UserRole::from_str("invalid"), Err(()));
+            assert_eq!(UserRole::from_str(""), Err(()));
+            assert_eq!(UserRole::from_str("Admin"), Err(()));
         }
     }
 

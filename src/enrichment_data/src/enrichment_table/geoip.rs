@@ -156,6 +156,10 @@ impl Geoip {
         }
     }
 
+    pub fn reader(&self) -> Arc<maxminddb::Reader<Vec<u8>>> {
+        self.dbreader.clone()
+    }
+
     fn lookup(&self, ip: IpAddr, select: Option<&[String]>) -> Option<ObjectMap> {
         let mut map = ObjectMap::new();
         let mut add_field = |key: &str, value: Option<Value>| {

@@ -35,6 +35,7 @@ const auth = {
     return res.data;
   },
   get_google_session: () => http().get<CommunitySession>("/config/google_session"),
+  logout: () => http().get("/config/logout"),
 };
 
 export default auth;

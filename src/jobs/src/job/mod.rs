@@ -548,7 +548,7 @@ pub async fn init() -> Result<(), anyhow::Error> {
         enrichment_data::enrichment_table::init_url_processor();
     }
     if LOCAL_NODE.is_ingester() || LOCAL_NODE.is_querier() || LOCAL_NODE.is_scheduler() {
-        mmdb_loader::run().await?;
+        mmdb_loader::run().await;
     }
 
     db::user::cache().await.expect("user cache failed");

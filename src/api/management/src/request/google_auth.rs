@@ -139,10 +139,11 @@ pub async fn login(cookies: CookieJar) -> Response {
 }
 
 pub async fn callback(cookies: CookieJar, Query(query): Query<CallbackQuery>) -> Response {
-    let Some((client_id, client_secret, redirect_url)) = valid_config() else {
-        return (StatusCode::NOT_FOUND, "Google login is disabled").into_response();
-    };
-    let clear_state = expired_cookie(STATE_COOKIE, redirect_is_secure(&redirect_url));
+    let config = valid_config();
+    let secure = config
+        .as_ref()
+        .is_none_or(|(_, _, redirect_url)| redirect_is_secure(redirect_url));
+    let clear_state = expired_cookie(STATE_COOKIE, secure);
     if query.error.is_some() {
         return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
     }
@@ -152,6 +153,9 @@ pub async fn callback(cookies: CookieJar, Query(query): Query<CallbackQuery>) ->
     if !state_matches(&cookies, state) {
         return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
     }
+    let Some((client_id, client_secret, redirect_url)) = config else {
+        return (cookies.add(clear_state), StatusCode::NOT_FOUND).into_response();
+    };
     let Ok(pending) = consume_pending(state).await else {
         return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
     };
@@ -342,18 +346,25 @@ async fn store_pending(state: &str, pending: &PendingLogin) -> Result<(), anyhow
     let expires_at = chrono::Utc::now()
         .timestamp_micros()
         .saturating_add((LOGIN_TTL_SECS as i64).saturating_mul(1_000_000));
-    db::session::set_with_expiry(
+    // Pending OAuth state is not a user session, so it must not enter cluster session caches.
+    infra::table::sessions::set_with_expiry(
         &pending_key(state),
         &serde_json::to_string(pending)?,
         expires_at,
     )
     .await
+    .map_err(Into::into)
 }
 
 async fn consume_pending(state: &str) -> Result<PendingLogin, anyhow::Error> {
-    Ok(serde_json::from_str(
-        &db::session::take(&pending_key(state)).await?,
-    )?)
+    let session = infra::table::sessions::take(&pending_key(state)).await?;
+    let Some(session) = session else {
+        anyhow::bail!("Pending login not found");
+    };
+    if session.expires_at < chrono::Utc::now().timestamp_micros() {
+        anyhow::bail!("Pending login expired");
+    }
+    Ok(serde_json::from_str(&session.access_token)?)
 }
 
 async fn exchange_code(
@@ -528,6 +539,7 @@ fn auth_error(status: StatusCode, error: impl std::fmt::Display) -> Response {
 mod tests {
     use std::collections::HashMap;
 
+    use common::infra::config::{USER_SESSIONS, USER_SESSIONS_EXPIRY};
     use jsonwebtoken::{EncodingKey, Header, encode};
     use serde::Serialize;
 
@@ -595,6 +607,16 @@ mod tests {
 
     fn validate(token: &str) -> Result<Claims, anyhow::Error> {
         validate_id_token_with_jwks(token, &discovery(), CLIENT_ID, "expected-nonce", &jwks())
+    }
+
+    async fn meta_store() {
+        static ONCE: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
+        ONCE.get_or_init(|| async {
+            infra::db::create_table().await.unwrap();
+            infra::db_init().await.unwrap();
+            infra::table::migrate().await.unwrap();
+        })
+        .await;
     }
 
     fn db_user(role: UserRole) -> config::meta::user::DBUser {
@@ -686,6 +708,44 @@ mod tests {
         let cookies = CookieJar::new().add(state_cookie("expected".to_string(), true));
         assert!(state_matches(&cookies, "expected"));
         assert!(!state_matches(&cookies, "different"));
+    }
+
+    #[tokio::test]
+    async fn callback_rejects_a_state_cookie_mismatch() {
+        let response = callback(
+            CookieJar::new().add(state_cookie("expected".to_string(), true)),
+            Query(CallbackQuery {
+                code: Some("code".to_string()),
+                state: Some("different".to_string()),
+                error: None,
+            }),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn pending_state_is_one_use_and_never_enters_user_session_caches() {
+        meta_store().await;
+        let state = format!("test-{}", config::ider::uuid());
+        let pending = PendingLogin {
+            nonce: "nonce".to_string(),
+            verifier: "verifier".to_string(),
+        };
+
+        store_pending(&state, &pending).await.unwrap();
+        let key = pending_key(&state);
+        assert!(!USER_SESSIONS.contains_key(&key));
+        assert!(!USER_SESSIONS_EXPIRY.contains_key(&key));
+        assert_eq!(consume_pending(&state).await.unwrap().nonce, "nonce");
+        assert!(consume_pending(&state).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn nonexistent_local_user_cannot_complete_google_login() {
+        meta_store().await;
+        let email = format!("missing-{}@example.com", config::ider::uuid());
+        assert!(!existing_login_user(&email).await);
     }
 
     #[test]

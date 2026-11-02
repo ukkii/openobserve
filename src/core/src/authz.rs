@@ -570,11 +570,21 @@ pub async fn check_permissions(
     role: UserRole,
     _is_external: bool,
 ) -> bool {
-    role != UserRole::Viewer || viewer_request_allowed(&auth_info.method, &auth_info.o2_type)
+    match role {
+        UserRole::User => false,
+        UserRole::Viewer => viewer_request_allowed(&auth_info.method, &auth_info.o2_type),
+        _ => true,
+    }
 }
 
 #[cfg(not(feature = "enterprise"))]
 fn viewer_request_allowed(method: &str, path: &str) -> bool {
+    viewer_request_allowed_with_base_uri(method, path, &config::get_config().common.base_uri)
+}
+
+#[cfg(not(feature = "enterprise"))]
+fn viewer_request_allowed_with_base_uri(method: &str, path: &str, base_uri: &str) -> bool {
+    let path = path.strip_prefix(base_uri).unwrap_or(path);
     let path = path.strip_prefix("/api").unwrap_or(path);
     if matches!(method, "GET" | "HEAD") {
         return !matches!(path, "/{org_id}/passcode" | "/{org_id}/rumtoken");
@@ -1391,6 +1401,11 @@ mod tests {
             "POST",
             "/{org_id}/prometheus/api/v1/query_range"
         ));
+        assert!(viewer_request_allowed_with_base_uri(
+            "POST",
+            "/o2/api/{org_id}/_search",
+            "/o2"
+        ));
         assert!(!viewer_request_allowed("POST", "/{org_id}/streams"));
         assert!(!viewer_request_allowed("POST", "/{org_id}/_bulk"));
         assert!(!viewer_request_allowed("PUT", "/{org_id}/users/{email}"));
@@ -1398,6 +1413,36 @@ mod tests {
             "DELETE",
             "/{org_id}/streams/{stream_name}"
         ));
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[tokio::test]
+    async fn login_only_user_is_denied_reads_and_writes() {
+        for (method, path) in [
+            ("GET", "/api/{org_id}/streams"),
+            ("POST", "/api/{org_id}/streams"),
+        ] {
+            assert!(
+                !check_permissions(
+                    "login-only@example.com",
+                    AuthExtractor {
+                        auth: String::new(),
+                        method: method.to_string(),
+                        o2_type: path.to_string(),
+                        org_id: "acme".to_string(),
+                        bypass_check: false,
+                        parent_id: String::new(),
+                        use_all_org: false,
+                        use_self_context: false,
+                        use_self_parent: false,
+                    },
+                    UserRole::User,
+                    false,
+                )
+                .await,
+                "{method} {path}"
+            );
+        }
     }
 
     #[cfg(not(feature = "enterprise"))]

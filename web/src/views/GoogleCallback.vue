@@ -28,15 +28,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 <script setup lang="ts">
 import { onMounted } from "vue";
-import { useRouter } from "vue-router";
 import { useStore } from "vuex";
 import OSpinner from "@/lib/feedback/Spinner/OSpinner.vue";
 import authService from "@/services/auth";
 import organizationsService from "@/services/organizations";
 import { useI18nTyped } from "@/types/i18n";
+import { redirectUser } from "@/utils/common";
 import { b64EncodeStandard } from "@/utils/formatters";
 import { expireSession } from "@/utils/sessionServices";
-import { isSameOriginRedirect } from "@/utils/safeUrl";
 import { useLocalCurrentUser, useLocalOrganization, useLocalUserInfo } from "@/utils/storage";
 
 interface Organization {
@@ -53,7 +52,6 @@ interface OrganizationListResponse {
 }
 
 const store = useStore();
-const router = useRouter();
 const { t } = useI18nTyped();
 
 function selectOrganization(organizations: Organization[], email: string): void {
@@ -98,13 +96,13 @@ async function finishLogin(): Promise<void> {
 
     const redirectURI = window.sessionStorage.getItem("redirectURI");
     window.sessionStorage.removeItem("redirectURI");
-    if (redirectURI && isSameOriginRedirect(redirectURI)) {
-      if (redirectURI.startsWith("/")) await router.replace({ path: redirectURI });
-      else window.location.href = redirectURI;
-    } else {
-      await router.replace({ path: "/" });
-    }
+    redirectUser(redirectURI);
   } catch {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.warn("Google callback could not revoke the server session", error);
+    }
     expireSession(store, { toLogin: true });
   }
 }

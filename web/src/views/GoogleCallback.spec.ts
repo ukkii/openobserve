@@ -21,11 +21,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import GoogleCallback from "./GoogleCallback.vue";
 import authService from "@/services/auth";
 import organizationsService from "@/services/organizations";
+import { redirectUser } from "@/utils/common";
 import { expireSession } from "@/utils/sessionServices";
 import { useLocalCurrentUser, useLocalOrganization, useLocalUserInfo } from "@/utils/storage";
 
 vi.mock("@/services/auth", () => ({
-  default: { get_google_session: vi.fn() },
+  default: { get_google_session: vi.fn(), logout: vi.fn() },
 }));
 vi.mock("@/services/organizations", () => ({
   default: { list: vi.fn() },
@@ -36,6 +37,7 @@ vi.mock("@/utils/storage", () => ({
   useLocalUserInfo: vi.fn(),
 }));
 vi.mock("@/utils/sessionServices", () => ({ expireSession: vi.fn() }));
+vi.mock("@/utils/common", () => ({ redirectUser: vi.fn() }));
 
 function setup() {
   const store = createStore({
@@ -90,6 +92,7 @@ describe("GoogleCallback", () => {
     vi.mocked(authService.get_google_session).mockResolvedValue({
       data: { email: "viewer@example.com", first_name: "View", last_name: "Er" },
     });
+    vi.mocked(authService.logout).mockResolvedValue({ data: {} });
     vi.mocked(organizationsService.list).mockResolvedValue({
       data: {
         data: [
@@ -120,12 +123,13 @@ describe("GoogleCallback", () => {
     expect(store.state.selectedOrganization).toEqual(
       expect.objectContaining({ identifier: "acme" }),
     );
-    expect(router.currentRoute.value.path).toBe("/logs");
+    expect(redirectUser).toHaveBeenCalledWith("/logs");
+    expect(authService.logout).not.toHaveBeenCalled();
     expect(expireSession).not.toHaveBeenCalled();
   });
 
-  it("expires the login when the server session cannot be resolved", async () => {
-    vi.mocked(authService.get_google_session).mockRejectedValueOnce(new Error("unauthorized"));
+  it("revokes the server session before expiring a failed bootstrap", async () => {
+    vi.mocked(organizationsService.list).mockRejectedValueOnce(new Error("unavailable"));
     const { store, router, i18n } = setup();
     await router.push("/google/cb");
     await router.isReady();
@@ -133,7 +137,10 @@ describe("GoogleCallback", () => {
 
     await flushPromises();
 
+    expect(authService.logout).toHaveBeenCalledOnce();
     expect(expireSession).toHaveBeenCalledWith(store, { toLogin: true });
-    expect(organizationsService.list).not.toHaveBeenCalled();
+    expect(vi.mocked(authService.logout).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(expireSession).mock.invocationCallOrder[0],
+    );
   });
 });
