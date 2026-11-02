@@ -180,7 +180,7 @@ const visibleGroups = computed(() =>
   props.groups
     .map((g) => ({
       ...g,
-      items: g.items.filter((i) => i.visible !== false),
+      items: g.items.filter((i) => i.visible !== false && !i.locked),
     }))
     .filter((g) => g.items.length > 0),
 );

@@ -329,18 +329,28 @@ describe("SettingsIndex.vue", () => {
       expect(keys).toContain("organization");
     });
 
-    it("should include a Destinations group without the alerting entries", () => {
-      // Notification Destinations and Templates moved to Reliability; only
-      // Pipeline Destinations is still deployment configuration.
+    it("hides the enterprise-only Destinations group in an OSS build", () => {
       mockRouter.currentRoute.value.name = "general";
       wrapper = createWrapper();
       const groups = wrapper.vm.sectionGroups;
       const destGroup = groups.find((g: any) => g.label === "Destinations");
-      expect(destGroup).toBeDefined();
-      const keys = destGroup.items.map((i: any) => i.key);
-      expect(keys).toContain("pipeline_destinations");
-      expect(keys).not.toContain("alert_destinations");
-      expect(keys).not.toContain("templates");
+      expect(destGroup).toBeUndefined();
+    });
+
+    it("omits locked enterprise entries from the OSS settings rail", () => {
+      mockRouter.currentRoute.value.name = "general";
+      wrapper = createWrapper({
+        zoConfig: { service_streams_enabled: true, model_pricing_enabled: true },
+      });
+      const items = wrapper.vm.sectionGroups.flatMap((group: any) => group.items);
+      const keys = items.map((item: any) => item.key);
+
+      expect(items.every((item: any) => item.locked !== true)).toBe(true);
+      expect(keys).not.toContain("cipher-keys");
+      expect(keys).not.toContain("regex_patterns");
+      expect(keys).not.toContain("pipeline_destinations");
+      expect(keys).not.toContain("storageSettings");
+      expect(keys).not.toContain("model_pricing");
     });
   });
 
@@ -532,13 +542,12 @@ describe("SettingsIndex.vue", () => {
       expect(findEntry(wrapper)?.visible).toBe(false);
     });
 
-    it("shows locked (not hidden) in an OSS build, even in the meta org", () => {
+    it("is hidden in an OSS build, even in the meta org", () => {
       config.isEnterprise = "false";
       isMetaOrgRef.value = true;
       wrapper = createWrapper();
 
-      expect(findEntry(wrapper)?.visible).toBe(true);
-      expect(findEntry(wrapper)?.locked).toBe(true);
+      expect(findEntry(wrapper)).toBeUndefined();
     });
 
     it("sends an enterprise non-meta org back to General", () => {

@@ -114,7 +114,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                     : 'images/common/openobserve_latest_light_2.svg',
                 )
               "
-              :alt="raw('OpenObserve')"
+              :alt="raw('HT')"
             />
             <OButton
               :aria-label="t('common.close')"
@@ -657,7 +657,9 @@ export default defineComponent({
         store.state.zoConfig.version != ""
       ),
     );
-    const navLinks = computed(() => (menuReady.value ? linksList.value : []));
+    const navLinks = computed(() =>
+      menuReady.value ? linksList.value.filter((link) => !link.locked) : [],
+    );
 
     const langList = [
       {

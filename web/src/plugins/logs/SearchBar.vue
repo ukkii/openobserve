@@ -131,6 +131,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
             </OToggleGroupItem>
 
             <OToggleGroupItem
+              v-if="patternsAccess.allowed"
               data-test="logs-patterns-toggle"
               value="patterns"
               size="sm"
@@ -717,7 +718,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
           <ODropdownSeparator />
 
-          <ODropdownGroup :label="t('search.menuGroupSchedule')">
+          <ODropdownGroup
+            v-if="scheduledSearchAccess.allowed"
+            :label="t('search.menuGroupSchedule')"
+          >
             <template v-if="!scheduledSearchAccess.allowed" #label-action>
               <OIcon
                 name="lock"

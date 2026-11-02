@@ -1077,24 +1077,11 @@ describe("ONavGroup", () => {
       return { wrapper: w, router };
     }
 
-    it("renders the locked child as a non-navigating element, not a router-link", async () => {
+    it("hides the enterprise-only child", async () => {
       const { wrapper: w } = await mountLocked("/traces");
-      const el = w.get('[data-test="nav-group-item-traces-service-graph-locked"]');
-      expect(el.element.tagName).toBe("DIV");
-      expect(el.attributes("href")).toBeUndefined();
-      wrapper = w;
-    });
-
-    // Clicking a locked item must never navigate to its real destination
-    // (Service Graph) — it redirects to the Enterprise Features page instead.
-    it("redirects to the Enterprise Features page, not the real destination, when the locked child is clicked", async () => {
-      const { wrapper: w, router } = await mountLocked("/");
-      expect(router.currentRoute.value.fullPath).toBe("/");
-
-      await w.get('[data-test="nav-group-item-traces-service-graph-locked"]').trigger("click");
-      await flushPromises();
-
-      expect(router.currentRoute.value.name).toBe("enterpriseFeatures");
+      expect(w.find('[data-test="nav-group-item-traces-service-graph-locked"]').exists()).toBe(
+        false,
+      );
       wrapper = w;
     });
 

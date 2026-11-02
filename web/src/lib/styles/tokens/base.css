@@ -1,6 +1,24 @@
 /* ── Font faces ── */
 
 @font-face {
+  font-family: "NotoSans";
+  src: url(@/styles/fonts/NotoSans-Variable.ttf) format("truetype");
+  font-weight: 100 900;
+  font-stretch: 62.5% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NotoSans";
+  src: url(@/styles/fonts/NotoSans-Italic-Variable.ttf) format("truetype");
+  font-weight: 100 900;
+  font-stretch: 62.5% 100%;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "Geist Mono";
   src: url(@/styles/fonts/GeistMono-Variable.woff2) format("woff2-variations");
   font-weight: 100 900;

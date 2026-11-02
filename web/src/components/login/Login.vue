@@ -66,7 +66,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                 ? getImageURL('images/common/openobserve_latest_dark_2.svg')
                 : getImageURL('images/common/openobserve_latest_light_2.svg')
             "
-            :alt="t('login.openObserveLogoAlt')"
+            :alt="raw('HT')"
           />
         </a>
       </div>
@@ -77,7 +77,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
             :style="
               store.state.zoConfig.custom_logo_text != '' ? 'width: 9.375rem;' : 'width: 15.625rem;'
             "
-            :alt="t('login.openObserveLogoAlt')"
+            :alt="raw('HT')"
             :src="
               isDark
                 ? getImageURL('images/common/openobserve_latest_dark_2.svg')

@@ -14,6 +14,16 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import config from "@/aws-exports";
+
+vi.mock("@/aws-exports", () => ({ default: { isEnterprise: "true", isCloud: "false" } }));
+vi.mock("@/services/http", () => ({
+  default: () => ({ post: communityPost, delete: communityDelete }),
+}));
+const { communityPost, communityDelete } = vi.hoisted(() => ({
+  communityPost: vi.fn(),
+  communityDelete: vi.fn(),
+}));
 
 vi.mock("@/services/iam", () => ({
   createRole: vi.fn(),
@@ -77,12 +87,35 @@ const useOrg = (org: string, zoConfig: Record<string, unknown> = {}) => {
 
 describe("useMcpCredential", () => {
   beforeEach(() => {
+    config.isEnterprise = "true";
     vi.clearAllMocks();
     vi.mocked(service_accounts.create).mockResolvedValue(created() as any);
     vi.mocked(createRole).mockResolvedValue({} as any);
     vi.mocked(getResources).mockResolvedValue({ data: RESOURCES } as any);
     vi.mocked(getAllRolePermissions).mockResolvedValue({ data: [] } as any);
     vi.mocked(updateRole).mockResolvedValue({} as any);
+  });
+
+  it("issues and revokes a community bearer credential without creating service accounts or roles", async () => {
+    config.isEnterprise = "false";
+    communityPost.mockResolvedValue({
+      data: {
+        email: "viewer@example.com",
+        token: "o2mcp.token",
+        expires_at: Date.now() * 1000 + 86_400_000_000,
+      },
+    });
+    communityDelete.mockResolvedValue({});
+    const state = useOrg("community-mcp-org");
+    const value = await state.generate();
+    expect(value?.scheme).toBe("Bearer");
+    expect(value?.scope).toBe("readonly");
+    expect(communityPost).toHaveBeenCalledWith("/api/community-mcp-org/mcp/credentials", {});
+    expect(service_accounts.create).not.toHaveBeenCalled();
+    expect(createRole).not.toHaveBeenCalled();
+    await state.revoke();
+    expect(communityDelete).toHaveBeenCalledWith("/api/community-mcp-org/mcp/credentials");
+    expect(state.credential.value).toBeNull();
   });
 
   describe("without rbac", () => {

@@ -143,16 +143,12 @@ describe("AlertInsights - rendering", () => {
     expect(w.find('[data-test="tab-overview"]').exists()).toBe(true);
   });
 
-  it("shows enterprise tabs locked (not hidden) when isEnterprise is false, as clickable (not disabled) controls", async () => {
+  it("hides enterprise tabs when isEnterprise is false", async () => {
     const w = await mountComp();
     const frequencyTab = w.find('[data-test="tab-frequency"]');
     const correlationTab = w.find('[data-test="tab-correlation"]');
-    expect(frequencyTab.exists()).toBe(true);
-    expect(correlationTab.exists()).toBe(true);
-    // No longer a disabled control — it's clickable, and opens the upgrade
-    // dialog (via onTabsChange) instead of switching tabs.
-    expect(frequencyTab.attributes("aria-disabled")).toBeUndefined();
-    expect(correlationTab.attributes("aria-disabled")).toBeUndefined();
+    expect(frequencyTab.exists()).toBe(false);
+    expect(correlationTab.exists()).toBe(false);
   });
 
   it("opens the upgrade dialog instead of switching when a locked tab is selected", async () => {

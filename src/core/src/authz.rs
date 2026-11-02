@@ -572,7 +572,11 @@ pub async fn check_permissions(
 ) -> bool {
     match role {
         UserRole::User => false,
-        UserRole::Viewer => viewer_request_allowed(&auth_info.method, &auth_info.o2_type),
+        UserRole::Viewer => {
+            viewer_request_allowed(&auth_info.method, &auth_info.o2_type)
+                || crate::mcp_credentials::self_service(&auth_info.method, &auth_info.o2_type)
+                || crate::mcp_credentials::transport(&auth_info.method, &auth_info.o2_type)
+        }
         _ => true,
     }
 }
@@ -611,7 +615,7 @@ const VIEWER_READ_POST_ROUTES: &[&str] = &[
 const VIEWER_MUTATION_ROUTES: &str = include_str!("viewer_mutation_routes.txt");
 
 #[cfg(not(feature = "enterprise"))]
-fn viewer_request_allowed(method: &str, path: &str) -> bool {
+pub fn viewer_request_allowed(method: &str, path: &str) -> bool {
     viewer_request_allowed_with_base_uri(method, path, &config::get_config().common.base_uri)
 }
 

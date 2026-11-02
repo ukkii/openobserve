@@ -32,7 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         <img
           class="h-10 max-h-10 w-auto max-w-50 cursor-pointer"
           loading="lazy"
-          :alt="t('login.openObserveLogoAlt')"
+          :alt="raw('HT')"
           :src="
             isDark
               ? getImageURL('images/common/openobserve_latest_dark_2.svg')
@@ -72,7 +72,7 @@ import {
 import usersService from "@/services/users";
 import organizationsService from "@/services/organizations";
 import { toast } from "@/lib/feedback/Toast/useToast";
-import { useI18nTyped } from "@/types/i18n";
+import { raw, useI18nTyped } from "@/types/i18n";
 import { expireSession } from "@/utils/sessionServices";
 import { isSameOriginRedirect } from "@/utils/safeUrl";
 import { withDisambiguatedOrgLabels } from "@/utils/organizationLabel";
@@ -299,6 +299,7 @@ export default defineComponent({
     return {
       store,
       t,
+      raw,
       isDark,
       config,
       router,

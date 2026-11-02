@@ -86,12 +86,14 @@ const fontLicensePlugin = {
   name: "font-license",
   apply: "build" as const,
   generateBundle() {
-    const src = path.resolve(__dirname, "src/styles/fonts/OFL.txt");
-    (this as any).emitFile({
-      type: "asset",
-      fileName: "fonts/OFL.txt",
-      source: fs.readFileSync(src, "utf8"),
-    });
+    for (const fileName of ["OFL.txt", "NotoSans-OFL.txt"]) {
+      const src = path.resolve(__dirname, `src/styles/fonts/${fileName}`);
+      (this as any).emitFile({
+        type: "asset",
+        fileName: `fonts/${fileName}`,
+        source: fs.readFileSync(src, "utf8"),
+      });
+    }
   },
 };
 

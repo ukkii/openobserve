@@ -18,6 +18,7 @@ import { mount, VueWrapper, flushPromises } from "@vue/test-utils";
 import { ref, computed, reactive } from "vue";
 import store from "@/test/unit/helpers/store";
 import router from "@/test/unit/helpers/router";
+import config from "@/aws-exports";
 
 // ---------------------------------------------------------------------------
 // Module-level mocks — vi.mock is hoisted by Vitest; never use vi.doMock here
@@ -529,6 +530,18 @@ describe("SearchBar", () => {
 
   // -------------------------------------------------------------------------
   describe("tab toggle visibility", () => {
+    it("hides Service Graph in a community build", async () => {
+      config.isEnterprise = "false";
+      try {
+        wrapper = mountSearchBar();
+        await flushPromises();
+        expect(wrapper.find('[data-test="traces-service-graph-toggle"]').exists()).toBe(false);
+        expect(wrapper.find('[data-test="traces-search-mode-spans-btn"]').exists()).toBe(true);
+      } finally {
+        config.isEnterprise = "true";
+      }
+    });
+
     it("should render tab toggle buttons on enterprise", async () => {
       wrapper = mountSearchBar();
       await flushPromises();

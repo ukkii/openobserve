@@ -53,7 +53,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
               <span v-if="!toolbarToggleIconOnly">{{ t("traces.tracesTab") }}</span>
             </OToggleGroupItem>
             <OToggleGroupItem
-              v-if="serviceGraphAccess.visible"
+              v-if="serviceGraphAccess.allowed"
               data-test="traces-service-graph-toggle"
               value="service-graph"
               size="sm"
@@ -1418,7 +1418,7 @@ export default defineComponent({
     const toolbarLayout = computed(() =>
       tracesToolbarLayout({
         available: availableLeftWidth.value,
-        serviceGraph: serviceGraphAccess.value.visible,
+        serviceGraph: serviceGraphAccess.value.allowed,
         drillDown: showDrillDown.value,
         reset: isSearchMode.value,
         pinnedWidth: pinnedGroupWidth.value,

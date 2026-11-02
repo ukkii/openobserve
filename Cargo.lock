@@ -8048,6 +8048,7 @@ dependencies = [
  "tokio",
  "transform",
  "url",
+ "urlencoding",
  "usage_reporting",
  "utoipa",
  "vrl",

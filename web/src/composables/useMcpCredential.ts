@@ -15,7 +15,9 @@
 
 // Mints a dedicated MCP service account and, under RBAC, joins it to one shared read-only role per org.
 
-import { ref } from "vue";
+import { ref, watch } from "vue";
+import config from "@/aws-exports";
+import http from "@/services/http";
 import { useStore } from "vuex";
 import { useI18nTyped } from "@/types/i18n";
 import service_accounts from "@/services/service_accounts";
@@ -40,6 +42,8 @@ const MCP_GRANTS = ["AllowList", "AllowPut"] as const;
 export type McpCredentialScope = "readonly" | "unscoped" | "rbacDisabled";
 
 export interface McpCredential {
+  scheme?: "Bearer";
+  expiresAt?: number;
   /** Synthetic SA identifier — the Basic-auth username (`<name>.<org>@sa.internal`). */
   email: string;
   /** Show-once token — the Basic-auth password. Never persisted. */
@@ -60,10 +64,35 @@ export function useMcpCredential() {
   const { t } = useI18nTyped();
 
   const currentOrg = (): string => store.state.selectedOrganization?.identifier ?? "";
+  const community = config.isEnterprise !== "true" && config.isCloud !== "true";
+  const cacheKey = () => JSON.stringify([store.state.userInfo?.email ?? "", currentOrg()]);
 
   const generating = ref(false);
   const error = ref("");
-  const credential = ref<McpCredential | null>(sessionCredentials.get(currentOrg()) ?? null);
+  const credential = ref<McpCredential | null>(sessionCredentials.get(cacheKey()) ?? null);
+  watch(cacheKey, (key) => {
+    const cached = sessionCredentials.get(key);
+    credential.value =
+      cached && (!cached.expiresAt || cached.expiresAt > Date.now() * 1000) ? cached : null;
+    error.value = "";
+  });
+
+  const revoke = async () => {
+    if (!community) return;
+    const key = cacheKey();
+    const org = currentOrg();
+    generating.value = true;
+    error.value = "";
+    try {
+      await http().delete(`/api/${encodeURIComponent(org)}/mcp/credentials`);
+      sessionCredentials.delete(key);
+      if (key === cacheKey()) credential.value = null;
+    } catch {
+      error.value = t("ingestion.mcp.credential.revokeError");
+    } finally {
+      generating.value = false;
+    }
+  };
 
   // A 400 on a fixed, valid, non-standard role name can only mean it already exists.
   const ensureReadonlyRole = async (org: string): Promise<boolean> => {
@@ -129,10 +158,11 @@ export function useMcpCredential() {
 
   const generate = async (): Promise<McpCredential | null> => {
     const org = currentOrg();
-    const cached = sessionCredentials.get(org);
-    if (cached) {
+    const key = cacheKey();
+    const cached = sessionCredentials.get(cacheKey());
+    if (cached && (!cached.expiresAt || cached.expiresAt > Date.now() * 1000)) {
       credential.value = cached;
-      return cached;
+      return credential.value;
     }
 
     generating.value = true;
@@ -142,6 +172,23 @@ export function useMcpCredential() {
     const name = `mcp-${Date.now().toString(36)}`;
 
     try {
+      if (community) {
+        const res = await http().post<{ email: string; token: string; expires_at: number }>(
+          `/api/${encodeURIComponent(org)}/mcp/credentials`,
+          {},
+        );
+        const issued: McpCredential = {
+          email: res.data.email,
+          token: res.data.token,
+          scheme: "Bearer",
+          expiresAt: res.data.expires_at,
+          role: null,
+          scope: "readonly",
+        };
+        sessionCredentials.set(key, issued);
+        if (key === cacheKey()) credential.value = issued;
+        return key === cacheKey() ? credential.value : issued;
+      }
       const email = buildServiceAccountEmail(name, org);
       const res = await service_accounts.create({ email, first_name: "MCP client" }, org);
       const token = res?.data?.token;
@@ -151,12 +198,13 @@ export function useMcpCredential() {
       // Raw service calls, so the IAM lists would otherwise keep serving their cached rows.
       void queryClient.invalidateQueries({ queryKey: serviceAccountKeys.all(org) });
 
-      credential.value = { email, token, ...(await applyReadonlyRole(email, org)) };
+      const issued: McpCredential = { email, token, ...(await applyReadonlyRole(email, org)) };
+      if (key === cacheKey()) credential.value = issued;
       // The role may exist even when a later step failed, so drop these regardless.
       void queryClient.invalidateQueries({ queryKey: iamKeys.rolesAll(org) });
       void queryClient.invalidateQueries({ queryKey: userKeys.users(org) });
-      sessionCredentials.set(org, credential.value);
-      return credential.value;
+      sessionCredentials.set(key, issued);
+      return key === cacheKey() ? credential.value : issued;
     } catch (err: any) {
       error.value =
         err?.response?.data?.message || err?.message || t("ingestion.mcp.credential.error");
@@ -166,5 +214,5 @@ export function useMcpCredential() {
     }
   };
 
-  return { generate, generating, error, credential };
+  return { generate, revoke, generating, error, credential };
 }

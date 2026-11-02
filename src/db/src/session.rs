@@ -336,7 +336,7 @@ fn is_expired(expires_at_micros: i64) -> bool {
 }
 
 fn is_user_session_id(session_id: &str) -> bool {
-    !session_id.starts_with(PENDING_LOGIN_PREFIX)
+    !session_id.starts_with(PENDING_LOGIN_PREFIX) && !session_id.starts_with("mcp:")
 }
 
 #[cfg(test)]

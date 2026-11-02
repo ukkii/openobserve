@@ -51,6 +51,6 @@ import { getImageURL } from "@/utils/queryUtils";
 withDefaults(defineProps<{ size?: "sm" | "md" }>(), { size: "sm" });
 
 const { t } = useI18nTyped();
-const brand = raw("OpenObserve");
+const brand = raw("HT");
 const { isDark } = useTheme();
 </script>

@@ -43,7 +43,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     class="px-page-edge flex flex-wrap items-center gap-3 py-2"
     :class="{ 'border-border-default border-b': bordered }"
   >
-    <template v-if="showAgentToggle || agentToggleLockedMessage">
+    <template v-if="showAgentToggle">
       <OToggleGroup
         :model-value="filterMode"
         type="single"
