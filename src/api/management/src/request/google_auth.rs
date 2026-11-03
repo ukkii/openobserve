@@ -36,7 +36,10 @@ use sha2::{Digest, Sha256};
 use time::{Duration as CookieDuration, OffsetDateTime};
 use url::Url;
 
-use crate::request::public_rate_limit::{Counters, too_many_requests};
+use crate::request::{
+    google_provision::{ProvisionPolicy, provision_user},
+    public_rate_limit::{Counters, too_many_requests},
+};
 
 const DISCOVERY_URL: &str = "https://accounts.google.com/.well-known/openid-configuration";
 const STATE_COOKIE: &str = "o2_google_state";
@@ -97,6 +100,8 @@ struct Claims {
     nonce: String,
     email: String,
     email_verified: bool,
+    #[serde(default)]
+    hd: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -113,6 +118,7 @@ struct CallbackRuntime {
     redirect_url: String,
     cookie_ttl_secs: i64,
     console_url: String,
+    provisioning: ProvisionPolicy,
 }
 
 #[derive(Serialize)]
@@ -267,7 +273,11 @@ async fn callback_with_runtime(
         Err(error) => return auth_error(StatusCode::UNAUTHORIZED, error),
     };
     let email = claims.email.trim().to_lowercase();
-    if !claims.email_verified || !existing_login_user(&email).await {
+    let policy = &runtime.provisioning;
+    if !claims.email_verified || !policy.identity_allowed(&email, claims.hd.as_deref()) {
+        return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
+    }
+    if !existing_login_user(&email).await && !provision_user(policy, &email).await {
         return (cookies.add(clear_state), StatusCode::UNAUTHORIZED).into_response();
     }
 
@@ -316,6 +326,7 @@ fn configured_callback_runtime() -> Option<CallbackRuntime> {
         redirect_url,
         cookie_ttl_secs: get_config().auth.cookie_max_age,
         console_url: console_url(),
+        provisioning: ProvisionPolicy::from_config(),
     })
 }
 
@@ -571,7 +582,7 @@ async fn existing_login_user(email: &str) -> bool {
         .is_some_and(|user| login_user_allowed(&user))
 }
 
-fn login_user_allowed(user: &config::meta::user::DBUser) -> bool {
+pub(crate) fn login_user_allowed(user: &config::meta::user::DBUser) -> bool {
     user.organizations.iter().any(|org| {
         !matches!(
             org.role,
@@ -658,6 +669,8 @@ mod tests {
         nonce: String,
         email: String,
         email_verified: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        hd: Option<String>,
     }
 
     #[derive(Clone)]
@@ -702,6 +715,7 @@ mod tests {
             nonce: "expected-nonce".to_string(),
             email: "viewer@example.com".to_string(),
             email_verified: true,
+            hd: None,
         }
     }
 
@@ -766,6 +780,7 @@ mod tests {
                 redirect_url: "http://localhost:5080/config/google_callback".to_string(),
                 cookie_ttl_secs: 3600,
                 console_url: "http://localhost:5080/web/".to_string(),
+                provisioning: ProvisionPolicy::default(),
             },
             metadata,
         )
@@ -1028,6 +1043,211 @@ mod tests {
         assert_eq!(endpoint.calls.load(Ordering::SeqCst), 2);
 
         db::user::delete(&allowed_email).await.unwrap();
+        db::organization::delete_org(&org_id).await.unwrap();
+        server.abort();
+    }
+
+    async fn provisioning_org() -> String {
+        let org_id = format!("google_provision_{}", config::ider::uuid().replace('-', ""));
+        db::organization::save_org(&Organization {
+            identifier: org_id.clone(),
+            name: org_id.clone(),
+            org_type: CUSTOM.to_string(),
+            service_account: None,
+        })
+        .await
+        .unwrap();
+        org_id
+    }
+
+    async fn login_as(
+        endpoint: &TokenEndpoint,
+        runtime: &CallbackRuntime,
+        metadata: &GoogleMetadataCache,
+        email: &str,
+        hd: Option<&str>,
+    ) -> StatusCode {
+        let nonce = format!("nonce-{}", config::ider::uuid());
+        let claims = TestClaims {
+            nonce: nonce.clone(),
+            email: email.to_string(),
+            hd: hd.map(str::to_string),
+            ..valid_claims()
+        };
+        *endpoint.token.write().await = signed(&claims, Some(KID));
+        let state = format!("state-{}", config::ider::uuid());
+        run_callback(&state, &nonce, runtime, metadata)
+            .await
+            .status()
+    }
+
+    fn org_roles(user: &config::meta::user::DBUser) -> Vec<(String, UserRole)> {
+        user.organizations
+            .iter()
+            .map(|org| (org.name.clone(), org.role.clone()))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn first_google_login_provisions_a_viewer_once() {
+        meta_store().await;
+        let (endpoint, token_url, server) = callback_environment().await;
+        let (mut runtime, metadata) = prepare_callback(token_url).await;
+        let org_id = provisioning_org().await;
+        runtime.provisioning = ProvisionPolicy::parse(
+            true,
+            "provision.test",
+            "viewer",
+            &format!("{org_id},missing_org_{}", config::ider::uuid()),
+        );
+        let email = format!("new-{}@provision.test", config::ider::uuid());
+
+        let status = login_as(
+            &endpoint,
+            &runtime,
+            &metadata,
+            &email,
+            Some("provision.test"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::TEMPORARY_REDIRECT);
+        let user = db::user::get_user_by_email(&email).await.unwrap();
+        assert_eq!(org_roles(&user), vec![(org_id.clone(), UserRole::Viewer)]);
+        assert!(!user.password.is_empty());
+
+        let again = login_as(
+            &endpoint,
+            &runtime,
+            &metadata,
+            &email,
+            Some("provision.test"),
+        )
+        .await;
+        assert_eq!(again, StatusCode::TEMPORARY_REDIRECT);
+        let user = db::user::get_user_by_email(&email).await.unwrap();
+        assert_eq!(org_roles(&user), vec![(org_id.clone(), UserRole::Viewer)]);
+
+        db::user::delete(&email).await.unwrap();
+        db::organization::delete_org(&org_id).await.unwrap();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn concurrent_first_logins_create_one_account() {
+        meta_store().await;
+        let org_id = provisioning_org().await;
+        let policy = ProvisionPolicy::parse(true, "provision.test", "viewer", &org_id);
+        let email = format!("race-{}@provision.test", config::ider::uuid());
+
+        let (first, second) = tokio::join!(
+            provision_user(&policy, &email),
+            provision_user(&policy, &email)
+        );
+        assert!(first && second);
+        let user = db::user::get_user_by_email(&email).await.unwrap();
+        assert_eq!(org_roles(&user), vec![(org_id.clone(), UserRole::Viewer)]);
+
+        db::user::delete(&email).await.unwrap();
+        db::organization::delete_org(&org_id).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn provisioning_rejects_missing_hosted_domain_and_disabled_flag() {
+        meta_store().await;
+        let (endpoint, token_url, server) = callback_environment().await;
+        let (mut runtime, metadata) = prepare_callback(token_url).await;
+        let org_id = provisioning_org().await;
+
+        runtime.provisioning = ProvisionPolicy::parse(true, "provision.test", "viewer", &org_id);
+        let consumer = format!("consumer-{}@provision.test", config::ider::uuid());
+        let status = login_as(&endpoint, &runtime, &metadata, &consumer, None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let foreign = format!("foreign-{}@evilprovision.test", config::ider::uuid());
+        let status = login_as(
+            &endpoint,
+            &runtime,
+            &metadata,
+            &foreign,
+            Some("evilprovision.test"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+        runtime.provisioning = ProvisionPolicy::parse(false, "provision.test", "viewer", &org_id);
+        let disabled = format!("disabled-{}@provision.test", config::ider::uuid());
+        let status = login_as(
+            &endpoint,
+            &runtime,
+            &metadata,
+            &disabled,
+            Some("provision.test"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+        runtime.provisioning = ProvisionPolicy::parse(true, "provision.test", "root", &org_id);
+        let root = format!("root-{}@provision.test", config::ider::uuid());
+        let status = login_as(
+            &endpoint,
+            &runtime,
+            &metadata,
+            &root,
+            Some("provision.test"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+        for email in [&consumer, &foreign, &disabled, &root] {
+            assert!(db::user::get_user_by_email(email).await.is_none());
+        }
+        db::organization::delete_org(&org_id).await.unwrap();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn provisioning_never_changes_existing_accounts() {
+        meta_store().await;
+        let (endpoint, token_url, server) = callback_environment().await;
+        let (mut runtime, metadata) = prepare_callback(token_url).await;
+        let org_id = provisioning_org().await;
+        runtime.provisioning = ProvisionPolicy::parse(true, "provision.test", "viewer", &org_id);
+
+        let mut editor = db_user(UserRole::Editor);
+        editor.email = format!("editor-{}@provision.test", config::ider::uuid());
+        editor.organizations[0].name = org_id.clone();
+        db::user::add(&editor).await.unwrap();
+        let status = login_as(
+            &endpoint,
+            &runtime,
+            &metadata,
+            &editor.email,
+            Some("provision.test"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::TEMPORARY_REDIRECT);
+        let stored = db::user::get_user_by_email(&editor.email).await.unwrap();
+        assert_eq!(org_roles(&stored), vec![(org_id.clone(), UserRole::Editor)]);
+
+        let mut login_only = db_user(UserRole::User);
+        login_only.email = format!("user-{}@provision.test", config::ider::uuid());
+        login_only.organizations[0].name = org_id.clone();
+        db::user::add(&login_only).await.unwrap();
+        let status = login_as(
+            &endpoint,
+            &runtime,
+            &metadata,
+            &login_only.email,
+            Some("provision.test"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let stored = db::user::get_user_by_email(&login_only.email)
+            .await
+            .unwrap();
+        assert_eq!(org_roles(&stored), vec![(org_id.clone(), UserRole::User)]);
+
+        db::user::delete(&editor.email).await.unwrap();
+        db::user::delete(&login_only.email).await.unwrap();
         db::organization::delete_org(&org_id).await.unwrap();
         server.abort();
     }

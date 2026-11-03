@@ -46,6 +46,7 @@ pub mod fleet;
 pub mod folders;
 pub mod gen_ai;
 pub mod google_auth;
+mod google_provision;
 pub mod ingest_rejections;
 pub mod keys;
 pub mod kv;

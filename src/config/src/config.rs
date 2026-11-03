@@ -1722,6 +1722,30 @@ pub struct Auth {
     pub google_redirect_url: String,
     #[env_config(name = "ZO_GOOGLE_LOGIN_RPM", default = 60)]
     pub google_login_rpm: u32,
+    #[env_config(
+        name = "ZO_GOOGLE_AUTO_CREATE_USERS",
+        default = false,
+        help = "Create a local account on first Google login. Requires ZO_GOOGLE_ALLOWED_DOMAINS and ZO_GOOGLE_DEFAULT_ORGS."
+    )]
+    pub google_auto_create_users: bool,
+    #[env_config(
+        name = "ZO_GOOGLE_ALLOWED_DOMAINS",
+        default = "",
+        help = "Comma-separated email domains allowed to use Google login; the ID token hd claim must match. Empty allows any verified email of an existing user."
+    )]
+    pub google_allowed_domains: String,
+    #[env_config(
+        name = "ZO_GOOGLE_DEFAULT_ROLE",
+        default = "viewer",
+        help = "Role for auto-created Google users: viewer, editor or admin. Any other value disables auto-creation."
+    )]
+    pub google_default_role: String,
+    #[env_config(
+        name = "ZO_GOOGLE_DEFAULT_ORGS",
+        default = "",
+        help = "Comma-separated org identifiers auto-created Google users join; unknown orgs are skipped."
+    )]
+    pub google_default_orgs: String,
     #[env_config(name = "ZO_CLI_USER_COOKIE")]
     pub cli_user_cookie: String,
     #[env_config(name = "ZO_COOKIE_MAX_AGE", default = 2592000)] // seconds, 30 days
