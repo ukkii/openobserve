@@ -42,6 +42,8 @@ const DISCOVERY_URL: &str = "https://accounts.google.com/.well-known/openid-conf
 const STATE_COOKIE: &str = "o2_google_state";
 const SESSION_COOKIE: &str = "o2_session";
 const LOGIN_TTL_SECS: u64 = 600;
+// The sessions table keys rows by VARCHAR(36); Postgres and strict MySQL reject longer IDs.
+const SESSION_ID_MAX_LEN: usize = 36;
 const LOGIN_RATE_WINDOW: Duration = Duration::from_secs(60);
 
 static GOOGLE_METADATA_CACHE: LazyLock<GoogleMetadataCache> =
@@ -272,7 +274,7 @@ async fn callback_with_runtime(
     let now = chrono::Utc::now().timestamp();
     let ttl_secs = runtime.cookie_ttl_secs.max(1);
     let expires_at = session_expiry(now, ttl_secs);
-    let session_id = config::utils::rand::random_hex(32);
+    let session_id = config::utils::rand::random_hex(SESSION_ID_MAX_LEN / 2);
     if let Err(error) = db::session::set_with_expiry(
         &session_id,
         &format!("Community {email}"),
@@ -401,7 +403,13 @@ fn build_authorization_url(
 }
 
 fn pending_key(state: &str) -> String {
-    format!("{}{state}", db::session::PENDING_LOGIN_PREFIX)
+    let mut key = format!(
+        "{}{:x}",
+        db::session::PENDING_LOGIN_PREFIX,
+        Sha256::digest(state.as_bytes())
+    );
+    key.truncate(SESSION_ID_MAX_LEN);
+    key
 }
 
 fn login_rate_limit(ip: Option<RealIp>, attempts: &Counters, rpm: u32) -> LoginRateLimit {
@@ -858,7 +866,10 @@ mod tests {
 
     #[test]
     fn pending_state_uses_the_shared_session_namespace() {
-        assert_eq!(pending_key("one-use-state"), "google_pending:one-use-state");
+        let key = pending_key(&config::utils::rand::random_hex(32));
+        assert!(key.starts_with(db::session::PENDING_LOGIN_PREFIX));
+        assert_eq!(key.len(), SESSION_ID_MAX_LEN);
+        assert_ne!(pending_key("state-a"), pending_key("state-b"));
         let pending = PendingLogin {
             nonce: "nonce".to_string(),
             verifier: "verifier".to_string(),
