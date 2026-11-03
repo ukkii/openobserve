@@ -19,9 +19,6 @@ import ExportDashboard from "./ExportDashboard.vue";
 import i18n from "@/locales";
 import { createStore } from "vuex";
 import { createRouter, createWebHistory } from "vue-router";
-import analytics from "@/services/product_analytics";
-
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 
 // Mock getDashboard utility
 vi.mock("@/utils/commons", () => ({
@@ -277,9 +274,6 @@ describe("ExportDashboard", () => {
     });
 
     await wrapper.vm.downloadDashboard();
-
-    expect(analytics.track).toHaveBeenCalledTimes(1);
-    expect(analytics.track).toHaveBeenCalledWith("dashboard_exported", { format: "json" });
     createElementSpy.mockRestore();
   });
 
@@ -292,7 +286,5 @@ describe("ExportDashboard", () => {
     });
 
     await expect(wrapper.vm.downloadDashboard()).rejects.toThrow("boom");
-
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 });

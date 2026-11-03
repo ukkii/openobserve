@@ -36,12 +36,48 @@ const MCP_PROTOCOL_VERSION_HEADER: &str = "MCP-Protocol-Version";
 const MCP_METHOD_HEADER: &str = "Mcp-Method";
 /// Mirrors `params.name` on tools/call (required on 2026-07-28 requests)
 const MCP_NAME_HEADER: &str = "Mcp-Name";
-
-/// JSON-RPC error codes surfaced with a non-200 HTTP status per the
-/// 2026-07-28 Streamable HTTP transport.
 const JSONRPC_HEADER_MISMATCH: i32 = -32020;
 const JSONRPC_UNSUPPORTED_PROTOCOL_VERSION: i32 = -32022;
 const JSONRPC_METHOD_NOT_FOUND: i32 = -32601;
+
+#[cfg(not(feature = "enterprise"))]
+async fn issue_credential(Path(org): Path<String>, headers: HeaderMap) -> Response {
+    if !config::get_config().common.mcp_enabled {
+        return response_error(StatusCode::FORBIDDEN, "MCP is disabled");
+    }
+    let Some(email) = headers.get("user_id").and_then(|value| value.to_str().ok()) else {
+        return response_error(StatusCode::UNAUTHORIZED, "Authentication required");
+    };
+    match openobserve_core::mcp_credentials::issue(email, &org).await {
+        Ok(credential) => axum::response::IntoResponse::into_response((
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(credential),
+        )),
+        Err(_) => response_error(StatusCode::FORBIDDEN, "MCP credential could not be issued"),
+    }
+}
+
+#[cfg(not(feature = "enterprise"))]
+async fn revoke_credential(Path(org): Path<String>, headers: HeaderMap) -> Response {
+    let Some(email) = headers.get("user_id").and_then(|value| value.to_str().ok()) else {
+        return response_error(StatusCode::UNAUTHORIZED, "Authentication required");
+    };
+    match openobserve_core::mcp_credentials::revoke(email, &org).await {
+        Ok(()) => Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .body(Body::empty())
+            .unwrap(),
+        Err(_) => response_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "MCP credential could not be revoked",
+        ),
+    }
+}
+
+#[cfg(not(feature = "enterprise"))]
+fn response_error(status: StatusCode, message: &str) -> Response {
+    axum::response::IntoResponse::into_response((status, Json(json!({"message": message}))))
+}
 
 /// Build an HTTP response carrying a JSON-RPC error body.
 fn jsonrpc_error_response(
@@ -177,6 +213,20 @@ fn validate_mcp_headers(headers: &HeaderMap, request: &MCPRequest) -> Option<Res
     }
 
     None
+}
+
+pub fn credential_routes() -> axum::Router {
+    #[cfg(not(feature = "enterprise"))]
+    {
+        axum::Router::new().route(
+            "/{org_id}/mcp/credentials",
+            axum::routing::post(issue_credential).delete(revoke_credential),
+        )
+    }
+    #[cfg(feature = "enterprise")]
+    {
+        axum::Router::new()
+    }
 }
 
 /// Handler for MCP POST requests (single request/response)

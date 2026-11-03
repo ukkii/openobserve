@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 import { TestFunctionPayload } from "@/ts/interfaces/function";
 
 const jstransform = {
@@ -34,7 +33,6 @@ const jstransform = {
     return http()
       .post(`/api/${org_identifier}/functions`, data)
       .then((res) => {
-        analytics.track("function_created");
         return res;
       });
   },
@@ -45,7 +43,6 @@ const jstransform = {
     return http()
       .put(`/api/${org_identifier}/functions/${data.name}`, data)
       .then((res) => {
-        analytics.track("function_updated");
         return res;
       });
   },
@@ -55,7 +52,6 @@ const jstransform = {
     return http()
       .delete(url, config)
       .then((res) => {
-        analytics.track("function_deleted", { count: 1 });
         return res;
       });
   },
@@ -63,8 +59,6 @@ const jstransform = {
     return http()
       .delete(`/api/${org_identifier}/functions/bulk`, { data })
       .then((res) => {
-        const count = res.data?.successful?.length ?? 0;
-        if (count > 0) analytics.track("function_deleted", { count });
         return res;
       });
   },
@@ -125,7 +119,6 @@ const jstransform = {
     return http({ headers: { "Content-Type": "multipart/form-data" } })
       .post(`/api/${org_identifier}/enrichment_tables/${table_name}?append=${append}`, data)
       .then((res) => {
-        analytics.track("enrichment_table_uploaded", { source: "file", append, reload: false });
         return res;
       });
   },
@@ -144,11 +137,6 @@ const jstransform = {
         { url, replace_failed },
       )
       .then((res) => {
-        analytics.track("enrichment_table_uploaded", {
-          source: "url",
-          append: append_data,
-          reload: retry,
-        });
         return res;
       });
   },
@@ -159,7 +147,6 @@ const jstransform = {
     return http()
       .post(`/api/${org_identifier}/functions/test`, data)
       .then((res) => {
-        analytics.track("function_tested");
         return res;
       });
   },

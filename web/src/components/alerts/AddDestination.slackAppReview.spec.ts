@@ -55,7 +55,6 @@ vi.mock("@/services/oncall", () => ({
   default: { listTeams: vi.fn(), getTeamChannel: vi.fn() },
 }));
 vi.mock("@/services/users", () => ({ default: { orgUsers: vi.fn(), getRoles: vi.fn() } }));
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 vi.mock("@/lib/feedback/Toast/useToast", () => ({ toast: vi.fn() }));
 
 const channels = [

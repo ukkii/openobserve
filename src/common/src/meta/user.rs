@@ -17,7 +17,6 @@ use config::meta::user::{DBUser, User, UserOrg, UserRole};
 #[cfg(feature = "cloud")]
 use o2_enterprise::enterprise::cloud::OrgInviteStatus;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "enterprise")]
 use strum::IntoEnumIterator;
 use utoipa::ToSchema;
 
@@ -102,12 +101,28 @@ impl From<&PostUserRequest> for UserRequest {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct UserOrgRole {
     #[serde(rename = "role")]
     pub base_role: UserRole,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub custom_role: Option<Vec<String>>,
+}
+
+impl UserOrgRole {
+    #[cfg(not(feature = "enterprise"))]
+    pub fn from_community(role: &UserRoleRequest) -> Option<Self> {
+        if role.custom.is_some() {
+            return None;
+        }
+        let base_role = get_roles()
+            .into_iter()
+            .find(|candidate| candidate.to_string().eq_ignore_ascii_case(&role.role))?;
+        Some(Self {
+            base_role,
+            custom_role: None,
+        })
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema, Eq, PartialEq, Default)]
@@ -171,7 +186,9 @@ pub fn get_roles() -> Vec<UserRole> {
 
 #[cfg(not(feature = "enterprise"))]
 pub fn get_roles() -> Vec<UserRole> {
-    vec![UserRole::Admin, UserRole::Root, UserRole::ServiceAccount]
+    UserRole::iter()
+        .filter(UserRole::is_community_assignable)
+        .collect()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -432,6 +449,9 @@ impl From<&UserRoleRequest> for UserOrgRole {
             None
         };
 
+        #[cfg(feature = "enterprise")]
+        let base_role = standard_role.unwrap_or_else(get_default_user_role);
+        #[cfg(not(feature = "enterprise"))]
         let base_role = standard_role.unwrap_or_else(get_default_user_role);
 
         UserOrgRole {
@@ -865,10 +885,15 @@ mod tests {
         // Non-enterprise mode should have specific roles
         #[cfg(not(feature = "enterprise"))]
         {
-            assert_eq!(roles.len(), 3);
-            assert!(roles.contains(&UserRole::Admin));
-            assert!(roles.contains(&UserRole::Root));
-            assert!(roles.contains(&UserRole::ServiceAccount));
+            assert_eq!(
+                roles,
+                vec![
+                    UserRole::Admin,
+                    UserRole::Editor,
+                    UserRole::Viewer,
+                    UserRole::User,
+                ]
+            );
         }
 
         // Enterprise mode uses iterator over all roles
@@ -878,6 +903,54 @@ mod tests {
             assert!(roles.contains(&UserRole::Root));
             assert!(roles.contains(&UserRole::ServiceAccount));
         }
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[test]
+    fn community_role_conversion_preserves_allowed_roles_and_rejects_everything_else() {
+        for expected in [
+            UserRole::Admin,
+            UserRole::Editor,
+            UserRole::Viewer,
+            UserRole::User,
+        ] {
+            let request = UserRoleRequest {
+                role: expected.to_string(),
+                custom: None,
+            };
+            assert_eq!(
+                UserOrgRole::from_community(&request),
+                Some(UserOrgRole {
+                    base_role: expected,
+                    custom_role: None,
+                })
+            );
+        }
+
+        let mixed_case = UserRoleRequest {
+            role: "Admin".to_string(),
+            custom: None,
+        };
+        assert_eq!(
+            UserOrgRole::from_community(&mixed_case),
+            Some(UserOrgRole {
+                base_role: UserRole::Admin,
+                custom_role: None,
+            })
+        );
+
+        for role in ["unknown", "root", "service_account", "sre_agent"] {
+            let request = UserRoleRequest {
+                role: role.to_string(),
+                custom: None,
+            };
+            assert_eq!(UserOrgRole::from_community(&request), None, "{role}");
+        }
+        let custom = UserRoleRequest {
+            role: "viewer".to_string(),
+            custom: Some(vec!["custom".to_string()]),
+        };
+        assert_eq!(UserOrgRole::from_community(&custom), None);
     }
 
     #[cfg(feature = "enterprise")]

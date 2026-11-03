@@ -22,11 +22,7 @@ import BillingService from "@/services/billings";
 import paidOverage from "@/services/paidOverage";
 import * as zincutils from "@/utils/zincutils";
 import { nextTick } from "vue";
-import analytics from "@/services/product_analytics";
-import config from "@/aws-exports";
 import { siteURL } from "@/constants/config";
-
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 
 // Mock toast
 const { mockToast } = vi.hoisted(() => ({
@@ -219,7 +215,6 @@ describe("Plans Component", () => {
   });
 
   it("fires billing_checkout_returned once with the plan when Stripe sends the user back", async () => {
-    vi.mocked(analytics.track).mockClear();
     Object.defineProperty(document, "referrer", {
       value: "https://checkout.stripe.com/c/pay/cs_test",
       configurable: true,
@@ -228,12 +223,6 @@ describe("Plans Component", () => {
       global: { plugins: [i18n], provide: { store }, mocks: { $router: mockRouter } },
     });
     await flushPromises();
-
-    expect(
-      vi
-        .mocked(analytics.track)
-        .mock.calls.filter(([name]) => name === "billing_checkout_returned"),
-    ).toEqual([["billing_checkout_returned", { plan: config.paidPlan }]]);
     returned.unmount();
     Object.defineProperty(document, "referrer", { value: "", configurable: true });
   });
@@ -244,18 +233,11 @@ describe("Plans Component", () => {
     "https://evil.test/?next=https://checkout.stripe.com",
     "not a url checkout.stripe.com",
   ])("does not fire billing_checkout_returned for the look-alike referrer %s", async (referrer) => {
-    vi.mocked(analytics.track).mockClear();
     Object.defineProperty(document, "referrer", { value: referrer, configurable: true });
     const returned = mount(Plans, {
       global: { plugins: [i18n], provide: { store }, mocks: { $router: mockRouter } },
     });
     await flushPromises();
-
-    expect(
-      vi
-        .mocked(analytics.track)
-        .mock.calls.filter(([name]) => name === "billing_checkout_returned"),
-    ).toEqual([]);
     returned.unmount();
     Object.defineProperty(document, "referrer", { value: "", configurable: true });
   });
@@ -927,9 +909,6 @@ describe("Plans Component", () => {
       await flushPromises();
       await wrapper.findComponent({ name: "ProPlan" }).vm.$emit("contact-sales");
       expect(open).toHaveBeenCalledWith(siteURL.contactSales, "_blank");
-      expect(analytics.track).toHaveBeenCalledWith("billing_contact_sales_clicked", {
-        plan: "annual-contract",
-      });
       open.mockRestore();
     });
 

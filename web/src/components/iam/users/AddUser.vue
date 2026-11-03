@@ -268,7 +268,6 @@ import { queryClient } from "@/composables/query/queryClient";
 import { getImageURL } from "@/utils/zincutils";
 import { signOutThroughLeaveGuards } from "@/utils/drafts/signOutFlow";
 import config from "@/aws-exports";
-import { useReo } from "@/services/reodotdev_analytics";
 
 import OButton from "@/lib/core/Button/OButton.vue";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
@@ -367,7 +366,6 @@ export default defineComponent({
     const store: any = useStore();
     const router: any = useRouter();
     const { t } = useI18nTyped();
-    const { track } = useReo();
     const existingUser = ref(true);
     const beingUpdated: any = ref(false);
     const isPwd: any = ref(true);
@@ -489,7 +487,6 @@ export default defineComponent({
             });
           }
         }
-        track("Button Click", { button: "Update User", page: "Add User" });
       } else if (existingUser.value) {
         const userEmail = value.email;
         try {
@@ -525,7 +522,6 @@ export default defineComponent({
             }
           }
         }
-        track("Button Click", { button: "Update User", page: "Add User" });
       } else {
         try {
           const payload: any = {
@@ -548,7 +544,6 @@ export default defineComponent({
             message: raw(err.response?.data?.message) || t("toastMessages.iam.userSaveFailed"),
           });
         }
-        track("Button Click", { button: "Create User", page: "Add User" });
       }
     };
 
@@ -765,7 +760,6 @@ export default defineComponent({
           );
         });
       },
-      track,
     };
   },
   methods: {

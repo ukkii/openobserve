@@ -72,7 +72,6 @@ import type { SelectOption } from "@/lib/forms/Select/OSelect.types";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { raw, useI18nTyped } from "@/types/i18n";
 import organizationsService from "@/services/organizations";
-import analytics from "@/services/product_analytics";
 import { assignableRolesQuery } from "@/services/users.queries";
 import {
   makeMemberInvitationSchema,
@@ -153,11 +152,5 @@ const onSubmit = async (value: MemberInvitationForm) => {
       timeout: 5000,
     });
   }
-
-  analytics.track("Button Click", {
-    button: "Invite User",
-    user_org: store.state.selectedOrganization.identifier,
-    page: "Users",
-  });
 };
 </script>

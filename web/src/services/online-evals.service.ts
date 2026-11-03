@@ -6,7 +6,6 @@
 // (at your option) any later version.
 
 import http from "@/services/http";
-import analytics from "./product_analytics";
 
 export type EvalJobStatus = "draft" | "active" | "paused" | "archived";
 export type EvalTargetScope = "span" | "trace" | "session";
@@ -528,7 +527,6 @@ const onlineEvalsService = {
     },
     create: async (orgId: string, payload: EvalJobPayload): Promise<EvalJob> => {
       const response = await http().post(`/api/${orgId}/eval_jobs`, payload);
-      analytics.track("llm_eval_job_created");
       return response.data;
     },
     update: async (orgId: string, jobId: string, payload: EvalJobPayload): Promise<EvalJob> =>

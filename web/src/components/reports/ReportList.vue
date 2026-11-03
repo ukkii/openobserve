@@ -500,7 +500,6 @@ import OTabs from "@/lib/navigation/Tabs/OTabs.vue";
 import OTab from "@/lib/navigation/Tabs/OTab.vue";
 import OTooltip from "@/lib/overlay/Tooltip/OTooltip.vue";
 import { isCachedReport, lastRunChip } from "@/utils/reports/reportRun";
-import { useReo } from "@/services/reodotdev_analytics";
 import { getFoldersListByType } from "@/utils/commons";
 import OButton from "@/lib/core/Button/OButton.vue";
 import ORefreshButton from "@/lib/core/RefreshButton/ORefreshButton.vue";
@@ -524,7 +523,6 @@ const MoveAcrossFolders = defineAsyncComponent(
 
 const { t } = useI18nTyped();
 const router = useRouter();
-const { track } = useReo();
 const store = useStore();
 
 // ── Folder state ──────────────────────────────────────────────────────────────
@@ -1025,7 +1023,6 @@ const dropReportDrafts = (rows: { folder_id?: string; name: string }[]) => {
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 const createNewReport = () => {
-  track("Button Click", { button: "Add Report", page: "Reports" });
   router.push({
     name: "createReport",
     query: {

@@ -280,6 +280,7 @@ const destinationsSvc = vi.mocked(DestinationService);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  (store.state as any).currentuser.role = "admin";
 
   // Reset the shared router singleton before mounting. The component's
   // immediate watcher on query.action (and the activeTab init read of
@@ -2669,6 +2670,16 @@ describe("AlertList - first run and the alert library", () => {
       "Alert library",
     );
     expect(wrapper.find('[data-test="alert-list-empty-import"]').text()).toContain("Import alert");
+  });
+
+  it("hides alert mutation controls from Viewer", async () => {
+    (store.state as any).currentuser.role = "Viewer";
+    const wrapper = await mountEmpty();
+
+    expect(wrapper.find('[data-test="alert-list-add-alert-btn"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="alert-list-empty-alert-library"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="alert-list-empty-new-alert"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="alert-list-empty-import"]').exists()).toBe(false);
   });
 
   const emptyActions = (wrapper: any) =>

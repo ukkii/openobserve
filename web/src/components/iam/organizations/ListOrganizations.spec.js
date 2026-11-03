@@ -24,13 +24,6 @@ vi.mock("@/services/organizations", async (importOriginal) => {
   });
 });
 
-// Mock product analytics
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
 // Mock config
 vi.mock("@/aws-exports", () => ({
   default: {

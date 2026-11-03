@@ -644,7 +644,6 @@ import EditorDraftDialogs from "@/components/common/drafts/EditorDraftDialogs.vu
 import { deleteEditorDraftsFor } from "@/utils/drafts/editorDraftStore";
 import { reportDraftId } from "@/components/reports/reportDraft";
 import { convertDateToTimestamp } from "@/utils/date";
-import { useReo } from "@/services/reodotdev_analytics";
 import SelectFolderDropdown from "@/components/common/sidebar/SelectFolderDropDown.vue";
 import OPageLayout from "@/lib/core/PageLayout/OPageLayout.vue";
 import OButton from "@/lib/core/Button/OButton.vue";
@@ -760,8 +759,6 @@ const originalReportData: Ref<string> = ref("");
 const step = ref(1);
 
 const formData = ref(defaultReport);
-
-const { track } = useReo();
 
 const timeTabs = [
   {
@@ -1398,11 +1395,6 @@ const saveReport = async (value: CreateReportForm) => {
     timeout: 0,
   });
 
-  track("Button Click", {
-    button: "Save Report",
-    page: "Add Report",
-  });
-
   return savePromise
     .then(async () => {
       // Invalidate the folder cache so ReportList fetches fresh data on mount
@@ -1608,14 +1600,8 @@ const setupEditingReport = async (report: any) => {
 };
 
 const openCancelDialog = async () => {
-  const hadChanges = reportDraft.hasUnsavedChanges();
   if (!(await reportDraft.confirmLeave())) return;
-  if (!hadChanges) {
-    track("Button Click", {
-      button: "Cancel Report",
-      page: "Add Report",
-    });
-  }
+
   goToReports();
 };
 </script>

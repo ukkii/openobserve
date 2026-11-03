@@ -197,7 +197,6 @@ import OIcon from "@/lib/core/Icon/OIcon.vue";
 import OSearchInput from "@/lib/forms/SearchInput/OSearchInput.vue";
 import OTable from "@/lib/core/Table/OTable.vue";
 import type { OTableColumnDef } from "@/lib/core/Table/OTable.types";
-import analytics from "@/services/product_analytics";
 import { convertToTitleCase } from "@/utils/zincutils";
 import config from "@/aws-exports";
 import { toast } from "@/lib/feedback/Toast/useToast";
@@ -418,7 +417,7 @@ export default defineComponent({
 
     getOrganizations();
 
-    const addOrganization = (evt) => {
+    const addOrganization = (_evt) => {
       //reset the toBeUpdated data if user clicked on update and not submitted the form
       toBeUpdatedOrganization.value = {
         id: "",
@@ -432,15 +431,6 @@ export default defineComponent({
           org_identifier: store.state.selectedOrganization.identifier,
         },
       });
-
-      if (evt) {
-        let button_txt = evt.target.innerText;
-        analytics.track("Button Click", {
-          button: button_txt,
-          user_org: store.state.selectedOrganization.identifier,
-          page: "Organizations",
-        });
-      }
     };
 
     const hideAddOrgDialog = () => {
@@ -465,12 +455,6 @@ export default defineComponent({
         member_lists: [],
       };
       showJoinOrganizationDialog.value = true;
-
-      analytics.track("Button Click", {
-        button: "Invite Member",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Organizations",
-      });
     };
 
     const { confirm } = useConfirmDialog();

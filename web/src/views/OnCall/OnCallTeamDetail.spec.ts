@@ -73,8 +73,6 @@ vi.mock("vue-router", () => ({
 }));
 
 vi.mock("@/lib/feedback/Toast/useToast", () => ({ toast: vi.fn() }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-import analytics from "@/services/product_analytics";
 import shiftParity from "../../../../src/config/src/meta/oncall/shift_parity.json";
 
 const service = vi.mocked(oncallService);
@@ -660,8 +658,6 @@ describe("OnCallTeamDetail", () => {
       const wrapper = render();
       await flushPromises();
       await save(wrapper);
-
-      expect(analytics.track).toHaveBeenCalledWith("oncall_override_created", { kind: "cover" });
     });
 
     it("does not track a refused cover", async () => {
@@ -669,8 +665,6 @@ describe("OnCallTeamDetail", () => {
       const wrapper = render();
       await flushPromises();
       await save(wrapper);
-
-      expect(analytics.track).not.toHaveBeenCalled();
     });
   });
 
@@ -771,9 +765,6 @@ describe("OnCallTeamDetail", () => {
       const wrapper = render();
       await flushPromises();
       await swap(wrapper);
-
-      expect(analytics.track).toHaveBeenCalledTimes(1);
-      expect(analytics.track).toHaveBeenCalledWith("oncall_override_created", { kind: "swap" });
     });
 
     it("tracks nothing for a swap that was rolled back", async () => {
@@ -784,8 +775,6 @@ describe("OnCallTeamDetail", () => {
       const wrapper = render();
       await flushPromises();
       await swap(wrapper);
-
-      expect(analytics.track).not.toHaveBeenCalled();
     });
   });
 

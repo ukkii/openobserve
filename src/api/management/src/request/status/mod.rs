@@ -41,7 +41,6 @@ use config::{
     utils::{base64, json},
 };
 use db::{self, alerts::realtime_triggers::REALTIME_ALERT_TRIGGERS, user::is_root_user};
-use enrichment_data::enrichment_table::geoip::wait_for_initialization;
 use hashbrown::HashMap;
 use infra::{
     cache, cluster, file_list,
@@ -152,7 +151,6 @@ struct ConfigResponse<'a> {
     default_fts_keys: Vec<String>,
     default_secondary_index_fields: Vec<String>,
     default_quick_mode_fields: Vec<String>,
-    telemetry_enabled: bool,
     default_functions: Vec<ZoFunction<'a>>,
     sql_reserved_keywords: Vec<String>,
     sql_base64_enabled: bool,
@@ -314,7 +312,7 @@ struct ConfigBootstrapResponse {
     build_type: String,
     /// The UI's stale-build checker compares it across deploys.
     commit_hash: String,
-    telemetry_enabled: bool,
+    google_login_enabled: bool,
     sso_enabled: bool,
     native_login_enabled: bool,
     custom_logo_text: String,
@@ -457,7 +455,7 @@ pub async fn zo_config_bootstrap() -> impl IntoResponse {
     axum::Json(ConfigBootstrapResponse {
         build_type: build_type.to_string(),
         commit_hash: config::COMMIT_HASH.to_string(),
-        telemetry_enabled: cfg.common.telemetry_enabled,
+        google_login_enabled: super::google_auth::is_enabled(),
         sso_enabled,
         native_login_enabled,
         custom_logo_text,
@@ -581,7 +579,6 @@ pub async fn zo_config(
         commit_hash: config::COMMIT_HASH.to_string(),
         build_date: config::BUILD_DATE.to_string(),
         build_type: build_type.to_string(),
-        telemetry_enabled: cfg.common.telemetry_enabled,
         default_fts_keys: SQL_FULL_TEXT_SEARCH_FIELDS
             .iter()
             .map(|s| s.to_string())
@@ -1731,11 +1728,21 @@ pub async fn logout(
             .await;
         }
     };
+    if let Some(cookie) = cookies.get("o2_session") {
+        openobserve_core::session::remove_session(cookie.value()).await;
+    }
     let max_age_secs = db::password_policy::cookie_max_age_secs().await;
     let auth_cookie =
         prepare_empty_cookie("auth_tokens", &AuthTokens::default(), &conf, max_age_secs);
     let auth_ext_cookie =
         prepare_empty_cookie("auth_ext", &AuthTokensExt::default(), &conf, max_age_secs);
+    let community_cookie = Cookie::build(("o2_session", ""))
+        .path("/")
+        .http_only(true)
+        .secure(conf.auth.google_redirect_url.starts_with("https://"))
+        .same_site(SameSite::Lax)
+        .max_age(time::Duration::ZERO)
+        .build();
 
     #[cfg(feature = "enterprise")]
     if let Some(user_email) = user_email {
@@ -1763,6 +1770,7 @@ pub async fn logout(
         .header(header::LOCATION, "/")
         .header(header::SET_COOKIE, auth_cookie.to_string())
         .header(header::SET_COOKIE, auth_ext_cookie.to_string())
+        .header(header::SET_COOKIE, community_cookie.to_string())
         .body(Body::empty())
         .unwrap()
 }
@@ -1923,7 +1931,7 @@ async fn reload_module_cache(module: &str) -> Result<(), anyhow::Error> {
         "user" => db::user::cache().await,
         "session" => db::session::cache().await,
         "functions" => openobserve_core::functions_cache::cache().await,
-        "pipeline" => openobserve_core::pipeline::db::cache(wait_for_initialization).await,
+        "pipeline" => openobserve_core::pipeline::db::cache().await,
         "alerts" => db::alerts::alert::cache().await,
         "destinations" => db::alerts::destinations::cache().await,
         "templates" => db::alerts::templates::cache().await,

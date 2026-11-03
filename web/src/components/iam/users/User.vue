@@ -430,7 +430,6 @@ import usersService from "@/services/users";
 import UpdateUserRole from "@/components/iam/users/UpdateRole.vue";
 import AddUser from "@/components/iam/users/AddUser.vue";
 import organizationsService from "@/services/organizations";
-import analytics from "@/services/product_analytics";
 import InviteMembersDialog from "@/components/iam/users/InviteMembersDialog.vue";
 import { splitInviteEmails } from "@/components/iam/users/MemberInvitation.schema";
 import { getImageURL, verifyOrganizationStatus, maskText, validateEmail } from "@/utils/zincutils";
@@ -1200,11 +1199,6 @@ export default defineComponent({
         // The row already stores the canonical role VALUE, so AddUser's role
         // select matches an option directly (see updateUser).
         selectedUser.value = { ...props.row };
-        analytics.track("Button Click", {
-          button: "Actions",
-          user_org: store.state.selectedOrganization.identifier,
-          page: "Users",
-        });
       } else {
         selectedUser.value = {};
       }
@@ -1498,8 +1492,6 @@ export default defineComponent({
           });
           await getOrgMembers(true);
           updateUserActions();
-
-          analytics.track("invite_revoked");
         })
         .catch((err: any) => {
           dismiss();
@@ -1670,12 +1662,6 @@ export default defineComponent({
           dismiss();
           console.log(error);
         });
-
-      analytics.track("Button Click", {
-        button: "Update Role",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Users",
-      });
     };
 
     const selectedUserIds = computed(() => selectedUsers.value.map((u: any) => u.email));

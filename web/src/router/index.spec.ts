@@ -68,6 +68,11 @@ vi.mock("@/composables/shared/router", () => ({
         component: { template: "<div>Logs</div>" },
         meta: { titleKey: "menu.search" },
       },
+      {
+        path: "alerts/add",
+        name: "addAlert",
+        component: { template: "<div>Add alert</div>" },
+      },
     ],
   }),
 }));
@@ -85,21 +90,10 @@ vi.mock("@/composables/router", () => ({
   }),
 }));
 
-vi.mock("@/enterprise/composables/router", () => ({
-  default: () => ({
-    parentRoutes: [],
-    homeChildRoutes: [],
-  }),
-}));
-
 vi.mock("@/utils/zincutils", () => ({
   getDecodedUserInfo: vi.fn().mockReturnValue(null),
   getPath: vi.fn().mockReturnValue("/"),
   mergeRoutes: vi.fn((r1: any[], r2: any[]) => [...(r1 || []), ...(r2 || [])]),
-}));
-
-vi.mock("@openobserve/browser-rum", () => ({
-  openobserveRum: { setViewName: vi.fn() },
 }));
 
 vi.mock("@/aws-exports", () => ({
@@ -118,15 +112,15 @@ vi.mock("@/layouts/MainLayout.vue", () => ({
 // ---------------------------------------------------------------------------
 import createAppRouter from "@/router/index";
 import { getDecodedUserInfo } from "@/utils/zincutils";
-import { openobserveRum } from "@openobserve/browser-rum";
 
 // ---------------------------------------------------------------------------
 // Helper: build a minimal Vuex store for tests
 // ---------------------------------------------------------------------------
-function buildStore(loggedIn = false) {
+function buildStore(loggedIn = false, role = "admin") {
   return createStore({
     state: {
       loggedIn,
+      currentuser: { role },
     },
     mutations: {
       login(state: any, payload: any) {
@@ -301,17 +295,11 @@ describe("router/index (factory)", () => {
       router = createAppRouter(store);
     });
 
-    it("sets the RUM view name to the route name after navigation", async () => {
-      vi.mocked(openobserveRum.setViewName).mockClear();
-      await router.push("/logs");
-      expect(openobserveRum.setViewName).toHaveBeenCalledWith("logs");
-    });
-
-    it("does not set the RUM view name when the navigation is aborted", async () => {
-      router.beforeEach(() => false);
-      vi.mocked(openobserveRum.setViewName).mockClear();
-      await router.push("/logs");
-      expect(openobserveRum.setViewName).not.toHaveBeenCalled();
+    it("redirects Viewer away from mutation-only routes", async () => {
+      store = buildStore(true, "viewer");
+      router = createAppRouter(store);
+      await router.push({ name: "addAlert" });
+      expect(router.currentRoute.value.name).toBe("home");
     });
   });
 

@@ -499,7 +499,7 @@ export default defineComponent({
           group: "Account",
         },
       ];
-      return items;
+      return items.filter((item) => item.locked !== true);
     });
 
     // The active section's metadata (label + description) — drives the shell-owned

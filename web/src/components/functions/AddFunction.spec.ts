@@ -19,12 +19,6 @@ vi.mock("@/services/jstransform", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
 // Mutable so each test can pick the entitlement BEFORE mounting (the gate is a
 // computed over a plain config object — it evaluates per component instance).
 vi.mock("@/aws-exports", () => ({

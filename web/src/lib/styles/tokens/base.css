@@ -1,13 +1,23 @@
 /* ── Font faces ── */
 
-/* Geist variable fonts — served locally */
 @font-face {
-  font-family: "Geist";
-  src: url(@/styles/fonts/Geist-Variable.woff2) format("woff2-variations");
+  font-family: "NotoSans";
+  src: url(@/styles/fonts/NotoSans-Variable.ttf) format("truetype");
   font-weight: 100 900;
+  font-stretch: 62.5% 100%;
   font-style: normal;
   font-display: swap;
 }
+
+@font-face {
+  font-family: "NotoSans";
+  src: url(@/styles/fonts/NotoSans-Italic-Variable.ttf) format("truetype");
+  font-weight: 100 900;
+  font-stretch: 62.5% 100%;
+  font-style: italic;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "Geist Mono";
   src: url(@/styles/fonts/GeistMono-Variable.woff2) format("woff2-variations");
@@ -24,7 +34,7 @@
 
 :root {
   /* --- Font family tokens --- */
-  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-sans: NotoSans, Lucida Grande, Lucida Sans Unicode, sans-serif;
   /* Fallbacks are per-glyph: any character Geist Mono lacks (CJK, box-drawing,
      symbols in log data) falls through to the next family automatically. Do NOT
      add families we don't ship a @font-face for — they resolve only on machines

@@ -134,7 +134,6 @@ import config from "@/aws-exports";
 import { useStore } from "vuex";
 import usePermissions from "@/composables/iam/usePermissions";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { deleteEditorDraftsFor } from "@/utils/drafts/editorDraftStore";
 import { useShortcuts } from "@/lib/vue-shortcut-manager";
@@ -142,8 +141,6 @@ import { focusSearchInput, isInputFocused } from "@/utils/keyboardShortcuts";
 import { useListViewState } from "@/composables/useListViewState";
 
 const { t } = useI18nTyped();
-
-const { track } = useReo();
 
 const viewState = useListViewState("iam-roles", {
   filterQuery: "",
@@ -261,10 +258,6 @@ const updateTable = () => {
 };
 
 const addRole = () => {
-  track("Button Click", {
-    button: "Add Role",
-    page: "Roles",
-  });
   showAddGroup.value = true;
 };
 

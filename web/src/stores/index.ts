@@ -127,7 +127,6 @@ const store = createStore({
     modulesToDisplay: {},
     isAiChatEnabled: false,
     isAiChatExpanded: false,
-    isWebinarBannerVisible: false,
     currentChatTimestamp: null as number | null,
     chatUpdated: false,
     // Default theme colors — derived from the default theme (O2 Signature) in the
@@ -347,9 +346,6 @@ const store = createStore({
     },
     setIsAiChatExpanded(state, payload) {
       state.isAiChatExpanded = payload;
-    },
-    setIsWebinarBannerVisible(state, payload) {
-      state.isWebinarBannerVisible = payload;
     },
     setCurrentChatTimestamp(state, payload) {
       state.currentChatTimestamp = payload;
@@ -604,9 +600,6 @@ const store = createStore({
     },
     setIsAiChatExpanded(context, payload) {
       context.commit("setIsAiChatExpanded", payload);
-    },
-    setIsWebinarBannerVisible(context, payload) {
-      context.commit("setIsWebinarBannerVisible", payload);
     },
     setCurrentChatTimestamp(context, payload) {
       context.commit("setCurrentChatTimestamp", payload);

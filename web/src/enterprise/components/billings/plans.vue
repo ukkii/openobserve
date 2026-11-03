@@ -188,7 +188,6 @@ import OButton from "@/lib/core/Button/OButton.vue";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
 import BillingService, { type AiUsage } from "@/services/billings";
 import PaidAiUsageControl from "./PaidAiUsageControl.vue";
-import analytics from "@/services/product_analytics";
 import { useStore } from "vuex";
 import useTheme from "@/composables/useTheme";
 import { useLocalOrganization, getImageURL } from "@/utils/zincutils";
@@ -199,14 +198,6 @@ import OSpinner from "@/lib/feedback/Spinner/OSpinner.vue";
 import OProgressBar from "@/lib/data/ProgressBar/OProgressBar.vue";
 import OTag from "@/lib/core/Badge/OTag.vue";
 import { toast } from "@/lib/feedback/Toast/useToast";
-
-function isStripeCheckoutReferrer(referrer: string): boolean {
-  try {
-    return new URL(referrer).hostname === "checkout.stripe.com";
-  } catch {
-    return false;
-  }
-}
 
 export default defineComponent({
   name: "plans",
@@ -225,9 +216,7 @@ export default defineComponent({
   emits: ["update:proSubscription"],
   async mounted() {
     // Stripe sends the user back here after checkout; the referrer is the only trace of that return.
-    if (isStripeCheckoutReferrer(document.referrer)) {
-      analytics.track("billing_checkout_returned", { plan: config.paidPlan });
-    }
+
     this.loading = true;
     this.fetchMembership();
     // Credits and pricing load independently: neither may hold back the other or the plans.
@@ -266,7 +255,6 @@ export default defineComponent({
       window.open(siteURL.contactSales, "_blank");
     },
     contactSalesForAnnual() {
-      analytics.track("billing_contact_sales_clicked", { plan: "annual-contract" });
       this.contactSales();
     },
     async fetchPricingData() {

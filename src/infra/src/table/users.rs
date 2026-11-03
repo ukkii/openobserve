@@ -288,6 +288,15 @@ pub async fn get(email: &str) -> Result<UserRecord, errors::Error> {
     Ok(UserRecord::from(record))
 }
 
+pub async fn get_primary(email: &str) -> Result<UserRecord, errors::Error> {
+    let record = Entity::find()
+        .filter(Expr::expr(Func::lower(Expr::col(Column::Email))).eq(email.to_lowercase()))
+        .one(get_orm_client_rw().await)
+        .await?
+        .ok_or_else(|| Error::DbError(DbError::SeaORMError("User not found".to_string())))?;
+    Ok(UserRecord::from(record))
+}
+
 /// The stable `users.id` for an email (uncached: a re-registered email gets a new id).
 pub async fn get_id_by_email(email: &str) -> Result<Option<String>, errors::Error> {
     get_id_by_email_with(get_orm_client_ro().await, email).await

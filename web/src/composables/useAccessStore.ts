@@ -234,7 +234,6 @@ const RESOURCE_ALIASES: Record<string, string> = {
   query_functions: "functions",
   "ingestion-tokens": "passcode",
   "llm/models/built-in": "llm/models",
-  "llm/models/refresh-built-in": "llm/models",
   "alerts/templates": "templates",
   "alerts/destinations": "destinations",
   "alerts/incidents": "incidents",
@@ -404,7 +403,7 @@ const ROUTE_OVERRIDES: RouteOverride[] = [
     permissions: { POST: "get" },
   },
   {
-    path: /^\/[^/]+\/llm\/models(\/refresh-built-in)?$/,
+    path: /^\/[^/]+\/llm\/models$/,
     resource: "llm/models",
     permissions: { POST: "update" },
   },

@@ -26,7 +26,6 @@ const config = {
   openReplayKey: import.meta.env.VITE_OPENREPLAY_KEY,
   sentryDSN: import.meta.env.VITE_SENTRY_DSN,
   zincQuotaThreshold: import.meta.env.VITE_ZINC_QUOTA_THRESHOLD,
-  enableAnalytics: import.meta.env.VITE_ZINC_ANALYTICS_ENABLED,
   isCloud: import.meta.env.VITE_OPENOBSERVE_CLOUD
     ? import.meta.env.VITE_OPENOBSERVE_CLOUD
     : "false",
@@ -45,7 +44,6 @@ const config = {
   ddAPPID: import.meta.env.VITE_DD_APP_ID,
   ddClientToken: import.meta.env.VITE_DD_CLIENT_TOKEN,
   ddSite: import.meta.env.VITE_DD_SITE,
-  REO_CLIENT_KEY: import.meta.env.VITE_REODOTDEV_CLIENT_KEY || "",
   // Master switch for the LLM Observability UI (LLM Insights + Sessions
   // tabs on the traces page, Thread tab inside trace details).
   //

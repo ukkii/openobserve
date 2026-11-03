@@ -237,7 +237,6 @@ import { defineComponent, ref, computed, watch } from "vue";
 import { useStore } from "vuex";
 import { raw, useI18nTyped, type I18nText } from "@/types/i18n";
 import dashboardsService from "@/services/dashboards";
-import analytics from "@/services/product_analytics";
 import {
   useDashboardGallery,
   getCategoryInfo,
@@ -556,7 +555,6 @@ export default defineComponent({
 
               // Import dashboard
               await dashboardsService.create(orgId, dashboardJson, folderId);
-              analytics.track("dashboard_created");
               successCount++;
             } catch (err) {
               failCount++;
@@ -574,9 +572,6 @@ export default defineComponent({
           }
         }
 
-        if (successCount > 0) {
-          analytics.track("dashboard_imported", { source: "library", count: successCount });
-        }
         // A cancelled batch shows no summary — the drawer is already gone.
         if (importCancelled) return;
 

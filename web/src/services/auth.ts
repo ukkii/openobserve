@@ -15,6 +15,12 @@
 
 import http from "./http";
 
+export interface CommunitySession {
+  email: string;
+  first_name: string;
+  last_name: string;
+}
+
 const auth = {
   sign_in_user: (payload: any) => {
     return http().post(`/auth/login`, payload);
@@ -28,6 +34,8 @@ const auth = {
     const res = await http().get("/config/dex_refresh");
     return res.data;
   },
+  get_google_session: () => http().get<CommunitySession>("/config/google_session"),
+  logout: () => http().get("/config/logout"),
 };
 
 export default auth;

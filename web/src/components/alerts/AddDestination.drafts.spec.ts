@@ -46,7 +46,6 @@ vi.mock("@/services/users", () => ({
     getRoles: vi.fn().mockResolvedValue({ data: [] }),
   },
 }));
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 
 interface DestinationForm {
   state: { values: Record<string, unknown> & { apiHeaders: { key: string; value: string }[] } };

@@ -231,7 +231,6 @@ import { useStore } from "vuex";
 import { useRouter, useRoute } from "vue-router";
 import { copyToClipboard } from "@/utils/clipboard";
 import config from "@/aws-exports";
-import analytics from "@/services/product_analytics";
 import { getImageURL } from "@/utils/zincutils";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import OSelect from "@/lib/forms/Select/OSelect.vue";
@@ -434,12 +433,6 @@ export default defineComponent({
           }
         });
 
-      analytics.track("Button Click", {
-        button: "Update Passcode",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Ingestion",
-      });
-
       // Returned so callers (and tests) can await the whole flow.
       return request;
     };
@@ -468,16 +461,7 @@ export default defineComponent({
         successMessage: t("common.contentCopiedSuccessfully"),
         errorMessage: t("ingestion.copyContentError"),
         timeout: 5000,
-      }).then((success: boolean) => {
-        if (success) {
-          analytics.track("Button Click", {
-            button: "Copy to Clipboard",
-            ingestion: router.currentRoute.value.name,
-            user_org: store.state.selectedOrganization.identifier,
-            page: "Ingestion",
-          });
-        }
-      });
+      }).then((_success: boolean) => {});
     };
 
     const orgIdForWrites = useOrgId();
@@ -487,8 +471,6 @@ export default defineComponent({
     const resetPasscode = useMutation(() => resetPasscodeMutation(orgIdForWrites.value));
 
     const generateRUMToken = () => {
-      // Held rather than returned inline: the `analytics.track` call below must
-      // still run synchronously, exactly as it did before.
       const request = createRumToken
         .mutateAsync()
         .then((res: any) => {
@@ -512,14 +494,6 @@ export default defineComponent({
           }
         });
 
-      analytics.track("Button Click", {
-        button: "Generate RUM Token",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Ingestion",
-      });
-
-      // Returned so callers (and tests) can await the whole flow: `mutateAsync`
-      // settles a tick later than a bare service promise did.
       return request;
     };
 
@@ -544,12 +518,6 @@ export default defineComponent({
             });
           }
         });
-
-      analytics.track("Button Click", {
-        button: "Update RUM Token",
-        user_org: store.state.selectedOrganization.identifier,
-        page: "Ingestion",
-      });
 
       return done;
     };

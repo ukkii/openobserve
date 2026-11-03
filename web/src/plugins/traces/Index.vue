@@ -321,7 +321,6 @@ import { buildViewTracesFilter, normalizeViewTracesPayload } from "./viewTracesH
 import { tracesRunIsStaged, tracesSearchRunSignature } from "./tracesSearchBar.utils";
 import { chartColor } from "@/utils/chartTheme";
 import useHttpStreaming from "@/composables/useStreamingSearch";
-import analytics from "@/services/product_analytics";
 import config from "@/aws-exports";
 import { logsErrorMessage } from "@/utils/common";
 import { rangesFromServerError } from "@/utils/query/sqlDiagnostics";
@@ -1182,9 +1181,6 @@ async function getQueryData(
           delete tracesRequestState[searchTraceId];
           if (isPagination) noteTracesPageLoad(searchTraceId, "done");
           if (!isPagination) {
-            analytics.track("traces_search_completed", {
-              hits: searchObj.data.queryResults?.hits?.length ?? 0,
-            });
             fetchTracesCount();
           }
           correlationFilters.save().catch((e) => console.error("[correlation:save] error:", e));
@@ -2183,23 +2179,9 @@ const searchData = (record = true) => {
   if (activeTab.value === "service-graph" || activeTab.value === "services-catalog") return;
 
   runQueryFn(record);
-
-  analytics.track("traces_search_run", {
-    stream_name: searchObj.data.stream.selectedStream.value,
-    show_query: searchObj.meta.showQuery,
-    show_histogram: searchObj.meta.showHistogram,
-    sql_mode: searchObj.meta.sqlMode,
-    show_fields: searchObj.meta.showFields,
-  });
 };
 
-const getMoreData = () => {
-  getQueryData(true);
-
-  analytics.track("traces_more_rows_loaded", {
-    stream_name: searchObj.data.stream.selectedStream.value,
-  });
-};
+const getMoreData = () => getQueryData(true);
 
 const onChangeStream = async () => {
   await extractFields();

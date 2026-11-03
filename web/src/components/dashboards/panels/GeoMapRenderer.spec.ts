@@ -301,19 +301,13 @@ describe("GeoMapRenderer", () => {
   });
 
   describe("Leaflet Map Integration", () => {
-    it("should initialize leaflet map with tile layer", async () => {
+    it("should not initialize a remote tile layer", async () => {
       const L = await import("leaflet");
 
       wrapper = createWrapper();
       await waitForChartInit(wrapper);
 
-      expect(L.default.tileLayer).toHaveBeenCalledWith(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        },
-      );
+      expect(L.default.tileLayer).not.toHaveBeenCalled();
     });
 
     it("should set map view with center and zoom", async () => {
@@ -601,11 +595,6 @@ describe("GeoMapRenderer", () => {
 
   describe("Error Handling", () => {
     it("should handle leaflet initialization errors", async () => {
-      const L = await import("leaflet");
-      L.default.tileLayer.mockImplementationOnce(() => {
-        throw new Error("Leaflet error");
-      });
-
       expect(() => {
         wrapper = createWrapper();
       }).not.toThrow();
@@ -875,7 +864,7 @@ describe("GeoMapRenderer", () => {
       const L = await import("leaflet");
 
       expect(echarts.init).toHaveBeenCalled();
-      expect(L.default.tileLayer).toHaveBeenCalled();
+      expect(L.default.tileLayer).not.toHaveBeenCalled();
       expect(wrapper.exists()).toBe(true);
     });
 
@@ -964,7 +953,7 @@ describe("GeoMapRenderer", () => {
       mockChart.setOption.mockImplementation(() => {});
     });
 
-    it("keeps the user's view and tile layer when only the data changes", async () => {
+    it("keeps the user's view when only the data changes", async () => {
       wrapper = createWrapper();
       await waitForChartInit(wrapper);
       const L: any = await import("leaflet");
@@ -992,7 +981,7 @@ describe("GeoMapRenderer", () => {
       expect(mockLeafletMap.setView).toHaveBeenCalledWith([20, 10], 4);
     });
 
-    it("builds the map from scratch and adds tiles once when none exists yet", async () => {
+    it("builds the map from scratch without remote tiles when none exists yet", async () => {
       let map: any;
       useLeaflet(() => map);
       mockChart.setOption.mockImplementation(() => {
@@ -1003,7 +992,7 @@ describe("GeoMapRenderer", () => {
       await waitForChartInit(wrapper);
 
       expect(mockChart.setOption.mock.calls[0][1]).toBe(true);
-      expect(L.default.tileLayer).toHaveBeenCalledTimes(1);
+      expect(L.default.tileLayer).not.toHaveBeenCalled();
       expect(mockLeafletMap.setView).toHaveBeenCalledWith([39.92, 116.46], 10);
     });
 
@@ -1026,11 +1015,11 @@ describe("GeoMapRenderer", () => {
       await refreshWith({ center: [116.46, 39.92], zoom: 10 });
 
       expect(mockChart.setOption.mock.calls.at(-1)![1]).toBe(true);
-      expect(mockTileLayer.addTo).toHaveBeenCalledWith(map);
+      expect(mockTileLayer.addTo).not.toHaveBeenCalled();
       expect(map.setView).toHaveBeenCalledWith([39.92, 116.46], 10);
     });
 
-    it("adds a tile layer to a replaced map", async () => {
+    it("binds a replaced map without adding a remote tile layer", async () => {
       let map: any = mockLeafletMap;
       useLeaflet(() => map);
       wrapper = createWrapper();
@@ -1043,7 +1032,7 @@ describe("GeoMapRenderer", () => {
 
       await refreshWith({ center: [116.46, 39.92], zoom: 10 });
 
-      expect(mockTileLayer.addTo).toHaveBeenCalledWith(replacement);
+      expect(mockTileLayer.addTo).not.toHaveBeenCalled();
       expect(replacement.setView).toHaveBeenCalledWith([39.92, 116.46], 10);
     });
   });

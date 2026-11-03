@@ -50,7 +50,6 @@ vi.mock("@/services/dashboards", async (importOriginal) => {
     default: { list_Folders: vi.fn(), list: vi.fn() },
   });
 });
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 vi.mock("@/utils/commons", () => ({ getFoldersListByType: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/utils/date", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),

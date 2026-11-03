@@ -26,9 +26,11 @@ pub struct MaxmindClient {
 impl MaxmindClient {
     /// Create a new instance of MaxmindClient
     pub fn new_with_reader(city_reader: Reader<Vec<u8>>) -> Self {
-        Self {
-            city_reader: Arc::new(city_reader),
-        }
+        Self::new_with_shared_reader(Arc::new(city_reader))
+    }
+
+    pub fn new_with_shared_reader(city_reader: Arc<Reader<Vec<u8>>>) -> Self {
+        Self { city_reader }
     }
 
     /// Create a new instance of MaxmindClient with path to city/country

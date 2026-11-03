@@ -60,7 +60,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 <script setup lang="ts">
 import { useMutation } from "@tanstack/vue-query";
 import { createRoleMutation } from "@/services/iam.queries";
-import analytics from "@/services/product_analytics";
 import { useOrgId } from "@/composables/query/useOrgId";
 import ODialog from "@/lib/overlay/Dialog/ODialog.vue";
 import OForm from "@/lib/forms/Form/OForm.vue";
@@ -68,7 +67,6 @@ import OFormInput from "@/lib/forms/Input/OFormInput.vue";
 import OFormSelect from "@/lib/forms/Select/OFormSelect.vue";
 import { computed } from "vue";
 import { useI18nTyped } from "@/types/i18n";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
 import { makeAddRoleSchema, type AddRoleForm } from "./AddRole.schema";
 
@@ -89,8 +87,6 @@ const props = defineProps({
 });
 
 const emits = defineEmits(["update:open", "added:role"]);
-
-const { track } = useReo();
 
 // The selected preset is form-owned; EditRole seeds it from ?preset= once the role exists.
 const startFromOptions = computed(() => [
@@ -126,7 +122,6 @@ const saveRole = async (value: AddRoleForm) => {
   try {
     // The mutation declares the scope it drops; this component never names a cache.
     await createRoleMutation_.mutateAsync(name);
-    analytics.track("role_created");
     emits("update:open", false);
     emits("added:role", { role_name: name, startFrom: value.startFrom });
     toast({
@@ -142,10 +137,5 @@ const saveRole = async (value: AddRoleForm) => {
     }
     console.log(err);
   }
-
-  track("Button Click", {
-    button: "Save Role",
-    page: "Add Role",
-  });
 };
 </script>

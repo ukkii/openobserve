@@ -82,7 +82,6 @@ import {
   onActivated,
   watch,
   computed,
-  getCurrentInstance,
   type PropType,
 } from "vue";
 
@@ -136,7 +135,6 @@ interface EditorConfig {
   mode: () => EditorSuggestMode;
   /** The Logs filter is a bare WHERE fragment, so a field with nothing before it starts a predicate. */
   filterMode: () => boolean;
-  tracker: SuggestTracker;
   /** When the chain last typed its space, so the menu that space opens is known to be chained. */
   chain: ChainState;
   announce: (rows: number) => void;
@@ -296,7 +294,6 @@ const modelIsBlank = (model: any): boolean => {
 const onSuggestAccepted = (editor: any, lane: SuggestLane | "", chained: boolean) => {
   const config = editorConfigs.get(modelKey(editor?.getModel?.()));
   if (!config) return;
-  config.tracker.accepted(lane);
   forgetMenu();
   if (!chained) return;
   config.chain.pendingSince = Date.now();
@@ -371,11 +368,6 @@ import {
   triggerCharactersFor,
   type SuggestLane,
 } from "@/utils/query/editorKeyContract";
-import {
-  createSuggestTracker,
-  flushEditorSuggestSummary,
-  type SuggestTracker,
-} from "@/utils/query/editorSuggestStats";
 import { useEditorSuggestMode, type EditorSuggestMode } from "@/composables/useEditorSuggestMode";
 import { loadPromqlLanguage } from "@/utils/query/promqlLanguageDefinition";
 
@@ -523,13 +515,6 @@ export default defineComponent({
     const { t } = useI18nTyped();
     const { showErrorNotification } = useNotifications();
     const { mode: suggestMode } = useEditorSuggestMode();
-    // Read once here: at unmount the route is already the destination. The editor id can carry trace ids and SQL.
-    const surface = String((getCurrentInstance()?.proxy as any)?.$route?.name ?? "unknown");
-    const suggestTracker = createSuggestTracker(
-      surface,
-      () => props.language,
-      () => suggestMode.value,
-    );
     const chainState: ChainState = { pendingSince: 0, typingSpace: false, spaceEnd: null };
     let navSkipKey: { set: (value: boolean) => void } | null = null;
     const groupsHeaders = (mode: EditorSuggestMode) => props.language === "sql" && mode !== "off";
@@ -848,7 +833,6 @@ export default defineComponent({
         escapeCount: () => escapeCount,
         mode: () => suggestMode.value,
         filterMode: () => props.filterMode,
-        tracker: suggestTracker,
         chain: chainState,
         announce: announceMenu,
         showHint,
@@ -1095,7 +1079,6 @@ export default defineComponent({
       editorObj.onDidBlurEditorText(() => {
         forgetMenu();
         commitModelChange.flush();
-        suggestTracker.closed();
       });
 
       const runQuery = () => {
@@ -1124,12 +1107,6 @@ export default defineComponent({
           e.preventDefault();
           e.stopPropagation();
           return;
-        }
-        if (isQueryLanguage(props.language)) {
-          suggestTracker.keyDown({
-            key: e.browserEvent?.key ?? "",
-            ctrlOrMeta: !!(e.ctrlKey || e.metaKey),
-          });
         }
         if (e.keyCode === monaco.KeyCode.Enter && (e.ctrlKey || e.metaKey)) {
           e.preventDefault();
@@ -1318,9 +1295,6 @@ export default defineComponent({
           window.removeEventListener("resize", editorObj._windowResizeHandler);
         }
 
-        // Surfaces without a query run report on the way out.
-        flushEditorSuggestSummary(surface);
-
         // Drop this editor's entry so the shared provider stops answering for
         // a model that no longer exists.
         if (publishedKey) editorConfigs.delete(publishedKey);
@@ -1459,7 +1433,7 @@ export default defineComponent({
 
       const respond = (
         config: EditorConfig,
-        context: any,
+        _context: any,
         chained: boolean,
         entries: any[] | null,
         word: string,
@@ -1471,12 +1445,6 @@ export default defineComponent({
         const decorated = withAcceptCommands(entries);
         const suggestions = itemsFrom(decorated, word, itemRange);
         noteMenuItems(suggestions, config.editor());
-        config.tracker.offered({
-          triggerKind: context?.triggerKind ?? 0,
-          chained,
-          lanes: decorated.map(laneOf).filter((lane): lane is SuggestLane => !!lane),
-          rows: suggestions.length,
-        });
         if (chained && suggestions.length) config.announce(suggestions.length);
         // ALWAYS incomplete: `severity = ` turns the same catalog into a value list, and Monaco only asks again when told to.
         return { suggestions, incomplete: true };
@@ -1516,8 +1484,8 @@ export default defineComponent({
         const budget = new Promise<"loading">((resolve) => {
           timer = setTimeout(() => resolve("loading"), VALUE_WAIT_BUDGET_MS);
         });
-        const fetched = lookup({ onFetched: (ms) => config.tracker.valueFetched(ms) }).catch(
-          (error) => (isNoValueLookup(error) ? ("nolookup" as const) : ("failed" as const)),
+        const fetched = lookup({}).catch((error) =>
+          isNoValueLookup(error) ? ("nolookup" as const) : ("failed" as const),
         );
         const outcome = await Promise.race([fetched, budget]);
         clearTimeout(timer);
@@ -1533,7 +1501,6 @@ export default defineComponent({
         if (stale) return null;
         // A retry at the same caret keeps the old hint, since only a caret move clears it; withStatus sets it again if still due.
         config.showHint(null);
-        if (outcome === "loading") config.tracker.budgetHit();
         return outcome;
       };
 

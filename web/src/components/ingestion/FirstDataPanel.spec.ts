@@ -22,7 +22,6 @@ import i18n from "@/locales";
 import { queryClient } from "@/composables/query/queryClient";
 import { streamKeys } from "@/services/stream.querykeys";
 import { copyToClipboard } from "@/utils/clipboard";
-import analytics from "@/services/product_analytics";
 import type {
   FirstEventResult,
   FirstEventState,
@@ -56,7 +55,6 @@ vi.mock("@/composables/firstEvent/useFirstEventWatch", () => ({
   },
 }));
 vi.mock("@/utils/clipboard", () => ({ copyToClipboard: vi.fn(async () => true) }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 const awsConfig = vi.hoisted(() => ({ isEnterprise: "false", isCloud: "true" }));
 vi.mock("@/aws-exports", () => ({ default: awsConfig }));
 const credentialApi = vi.hoisted(() => ({
@@ -304,10 +302,6 @@ describe("FirstDataPanel — full panel on Logs, Traces and Metrics", () => {
     wrapper.findComponent({ name: "OCodeBlock" }).vm.$emit("copy", { partial: false });
     await nextTick();
     expect(fake.start).toHaveBeenCalledWith("copy");
-    expect(analytics.track).toHaveBeenCalledWith("snippet_copied", {
-      route: "logs",
-      partial: false,
-    });
   });
 
   it("opens the guide and the source list in one click each", async () => {

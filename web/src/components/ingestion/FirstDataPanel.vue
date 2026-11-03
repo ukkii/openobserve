@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 <script setup lang="ts">
 import { computed, defineComponent, h, inject, onUnmounted, ref, watch, type Component } from "vue";
 import { useStore } from "vuex";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import OButton from "@/lib/core/Button/OButton.vue";
 import OCard from "@/lib/core/Card/OCard.vue";
@@ -26,7 +26,6 @@ import OIcon from "@/lib/core/Icon/OIcon.vue";
 import OBanner from "@/lib/feedback/Banner/OBanner.vue";
 import OTag from "@/lib/core/Badge/OTag.vue";
 import config from "@/aws-exports";
-import analytics from "@/services/product_analytics";
 import { streamNameListQuery } from "@/services/stream.queries";
 import { raw, useI18nTyped, type I18nText } from "@/types/i18n";
 import { getEndPoint, getImageURL } from "@/utils/zincutils";
@@ -84,7 +83,6 @@ defineSlots<{
 
 const { t } = useI18nTyped();
 const store = useStore();
-const route = useRoute();
 const router = useRouter();
 const openTokenPicker = inject(OPEN_TOKEN_PICKER, null);
 
@@ -307,8 +305,7 @@ const arrivedOpenLabel = computed((): I18nText => {
 
 const status = ref<InstanceType<typeof FirstEventStatus> | null>(null);
 
-const trackCopy = (partial: boolean) => {
-  analytics.track("snippet_copied", { route: route?.name, partial });
+const trackCopy = (_partial: boolean) => {
   status.value?.start("copy");
 };
 const copyCommand = () => {

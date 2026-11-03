@@ -73,10 +73,6 @@ vi.mock("@/services/users", () => ({
   },
 }));
 
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({ track: hoisted.mockTrack }),
-}));
-
 vi.mock("@/composables/usePrebuiltDestinations", async () => {
   const { computed } = await import("vue");
   return {

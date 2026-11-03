@@ -274,7 +274,15 @@ pub async fn save(
     axum::Json(user): axum::Json<PostUserRequest>,
 ) -> Response {
     let initiator_id = user_email.user_id;
+    #[cfg(not(feature = "enterprise"))]
+    let Some(community_role) = UserOrgRole::from_community(&user.role) else {
+        return MetaHttpResponse::bad_request("Role cannot be assigned in community edition");
+    };
     let mut user = UserRequest::from(&user);
+    #[cfg(not(feature = "enterprise"))]
+    {
+        user.role = community_role;
+    }
     user.email = user.email.trim().to_lowercase();
 
     let bad_req_msg = if let Some(msg) = validate_org_id(&org_id) {
@@ -305,10 +313,6 @@ pub async fn save(
             .unwrap();
     }
 
-    #[cfg(not(feature = "enterprise"))]
-    {
-        user.role.base_role = UserRole::Admin;
-    }
     match users::post_user(&org_id, user, &initiator_id).await {
         Ok(resp) => resp,
         Err(e) => MetaHttpResponse::internal_error(e),
@@ -351,8 +355,6 @@ pub async fn update(
     axum::Json(user): axum::Json<UpdateUser>,
 ) -> Response {
     let email_id = email_id.trim().to_string();
-    #[cfg(not(feature = "enterprise"))]
-    let mut user = user;
     if user.eq(&UpdateUser::default()) {
         return Response::builder()
             .status(StatusCode::BAD_REQUEST)
@@ -401,13 +403,6 @@ pub async fn update(
             .unwrap();
     }
 
-    #[cfg(not(feature = "enterprise"))]
-    {
-        user.role = Some(UserRoleRequest {
-            role: UserRole::Admin.to_string(),
-            custom: None,
-        });
-    }
     let initiator_id = &user_email.user_id;
     let update_mode = if user_email.user_id.eq(&email_id) {
         UserUpdateMode::SelfUpdate
@@ -453,7 +448,12 @@ pub async fn add_user_to_org(
     axum::Json(role): axum::Json<UserRoleRequest>,
 ) -> Response {
     let initiator_id = user_email.user_id;
+    #[cfg(feature = "enterprise")]
     let role = UserOrgRole::from(&role);
+    #[cfg(not(feature = "enterprise"))]
+    let Some(role) = UserOrgRole::from_community(&role) else {
+        return MetaHttpResponse::bad_request("Role cannot be assigned in community edition");
+    };
 
     // Prevent assignment of SreAgent role via API
     if role.base_role == UserRole::SreAgent {

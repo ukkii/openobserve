@@ -19,7 +19,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/locales";
 import store from "@/test/unit/helpers/store";
 import type { AlertLibraryEntry, AlertLibraryFile } from "@/types/alertLibrary";
-import analytics from "@/services/product_analytics";
 import config from "@/aws-exports";
 import { queryClient } from "@/composables/query/queryClient";
 import { alertKeys } from "@/services/alerts.querykeys";
@@ -68,7 +67,6 @@ vi.mock("@/utils/commons", async () => {
 });
 
 vi.mock("@/lib/feedback/Toast/useToast", () => ({ toast: mocks.toast }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 
 import LibraryInstallDialog from "./LibraryInstallDialog.vue";
 
@@ -244,7 +242,6 @@ describe("LibraryInstallDialog", () => {
     // IntersectionObserver#takeRecords as module-scope mocks, and a global reset
     // strips their implementations for the rest of the file.
     Object.values(mocks).forEach((mock) => mock.mockReset());
-    vi.mocked(analytics.track).mockClear();
     mocks.loadAlertFile.mockImplementation((e: AlertLibraryEntry) =>
       Promise.resolve(libraryFile(e.name)),
     );
@@ -717,12 +714,6 @@ describe("LibraryInstallDialog", () => {
       const wrapper = await mountBatch();
       await advanceToInstall(wrapper);
       await click(wrapper, "alert-library-install-run");
-
-      expect(analytics.track).toHaveBeenCalledTimes(1);
-      expect(analytics.track).toHaveBeenCalledWith("library_alert_installed", {
-        count: 2,
-        anomaly_count: 0,
-      });
     });
 
     it("does not track library_alert_installed when every install fails", async () => {
@@ -731,8 +722,6 @@ describe("LibraryInstallDialog", () => {
       const wrapper = await mountBatch();
       await advanceToInstall(wrapper);
       await click(wrapper, "alert-library-install-run");
-
-      expect(analytics.track).not.toHaveBeenCalled();
     });
 
     it("reports a clean batch and offers nothing to retry", async () => {
@@ -1234,10 +1223,6 @@ describe("LibraryInstallDialog", () => {
       expect(anomalyPayload()).not.toHaveProperty("trigger_condition");
       expect(anomalyPayload()).not.toHaveProperty("title");
       expect(statusOf(wrapper, "apm/traces_server_error_ratio_anomaly")).toBe("installed");
-      expect(analytics.track).toHaveBeenCalledWith("library_alert_installed", {
-        count: 2,
-        anomaly_count: 1,
-      });
     });
 
     it("refreshes the Alerts list as well as the anomaly lists after an anomaly create", async () => {

@@ -24,8 +24,6 @@ import searchService from "@/services/search";
 import SearchBar from "@/plugins/logs/SearchBar.vue";
 import useSearchQuery from "@/composables/useLogs/useSearchQuery";
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-
 const stream = {
   name: "fts_a",
   schema: [

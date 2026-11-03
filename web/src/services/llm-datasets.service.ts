@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "@/services/http";
-import analytics from "./product_analytics";
 
 // ─── LLM Annotation · Datasets ──────────────────────────────────────────────
 // Golden datasets are the append-only (MVCC) store the annotation workflow feeds
@@ -401,7 +400,6 @@ const llmDatasetsService = {
       description: payload.description ?? null,
       tags: payload.tags ?? [],
     });
-    analytics.track("llm_dataset_created");
     return normalize(res.data);
   },
 };

@@ -117,7 +117,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                     : 'images/common/openobserve_latest_light_2.svg',
                 )
               "
-              :alt="raw('OpenObserve')"
+              :alt="raw('HT')"
             />
           </a>
         </div>
@@ -136,7 +136,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                   : 'images/common/openobserve_latest_light_2.svg',
               )
             "
-            :alt="raw('OpenObserve')"
+            :alt="raw('HT')"
           />
         </a>
       </div>
@@ -191,32 +191,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         </OButton>
 
         <OPageHeaderStatus fallback />
-        <!-- EDITION BADGE / UPGRADE BUTTON -->
-        <!-- Enterprise/Cloud: ghost-muted badge (informational, opens about dialog) -->
-        <!-- Open Source: primary CTA to drive upgrades -->
-        <OButton
-          :variant="
-            config.isEnterprise === 'true' || config.isCloud === 'true'
-              ? 'outline-primary'
-              : 'primary'
-          "
-          size="xs"
-          class="max-md:hidden"
-          data-test="upgrade-to-enterprise-btn"
-          @click="openEnterpriseDialog"
-        >
-          <template #icon-left>
-            <OIcon
-              :name="
-                config.isEnterprise === 'true' || config.isCloud === 'true'
-                  ? 'verified'
-                  : 'card-giftcard'
-              "
-              size="sm"
-            />
-          </template>
-          {{ enterpriseButtonText }}
-        </OButton>
 
         <!-- ORGANIZATION SELECTOR: Dropdown to switch between organizations -->
         <OrganizationSelector
@@ -732,7 +706,7 @@ export default defineComponent({
       }),
     );
     const aiButtonVisible = computed(
-      () => !aiAccess.value.allowed || Boolean(props.store.state.zoConfig.ai_enabled),
+      () => aiAccess.value.allowed && Boolean(props.store.state.zoConfig.ai_enabled),
     );
     const aiSlotPending = computed(
       () => aiAccess.value.allowed && !props.store.state.zoConfig?.version,
@@ -748,20 +722,6 @@ export default defineComponent({
         }).allowed && readSlackOrgConfig(props.store.state.zoConfig).enabled,
     );
     const showLinkedAccounts = ref(false);
-
-    // Computed property for enterprise button text based on deployment type
-    const enterpriseButtonText = computed(() => {
-      const isEnterprise = props.config.isEnterprise === "true";
-      const isCloud = props.config.isCloud === "true";
-
-      if (isCloud) {
-        return t("about.header_button.cloud_features", { product: raw("OpenObserve") });
-      } else if (isEnterprise) {
-        return t("about.header_button.enterprise_edition");
-      } else {
-        return t("about.header_button.get_enterprise_free");
-      }
-    });
 
     // Computed property for ingestion quota percentage
     const ingestionQuotaPercentage = computed(() => {
@@ -861,7 +821,6 @@ export default defineComponent({
       t,
       raw,
       getImageURL,
-      enterpriseButtonText,
       aiSlotPending,
       ingestionQuotaPercentage,
       ingestionQuotaColor,
@@ -897,16 +856,3 @@ export default defineComponent({
   },
 });
 </script>
-
-<style scoped>
-/* keep(lib-override:o2-button): dark-only, element-scoped re-point of OButton's
-   ghost-primary tokens for the navbar upgrade CTA. The custom properties are READ by OButton's
-   own internal DOM, so they have to be declared on the button element itself —
-   there is no utility that sets them. Scoping appends [data-v] to the
-   [data-test] compound, which is OButton's root and therefore carries this
-   component's scope id. Was a global in styles/utilities.css (W1.d). */
-.dark [data-test="upgrade-to-enterprise-btn"] {
-  --color-button-ghost-primary-active-bg: var(--color-primary-900);
-  --color-button-ghost-primary-text: var(--color-primary-200);
-}
-</style>

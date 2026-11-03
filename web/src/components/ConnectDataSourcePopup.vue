@@ -20,7 +20,6 @@ import { useI18nTyped } from "@/types/i18n";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import config from "@/aws-exports";
-import analytics from "@/services/product_analytics";
 import { queryClient } from "@/composables/query/queryClient";
 import { orgSummaryQuery } from "@/services/organizations.queries";
 import {
@@ -71,18 +70,6 @@ const slackUrl = computed(() => getCommunitySlackUrl(store.state.zoConfig?.custo
 
 let stopOrgWatch: (() => void) | null = null;
 let orgResolveTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const track = (event: string, properties: Record<string, any> = {}) => {
-  try {
-    analytics.track(event, {
-      org_id: store.state.selectedOrganization?.identifier,
-      user_id: store.state.userInfo?.email,
-      ...properties,
-    });
-  } catch {
-    // Telemetry must never break the page.
-  }
-};
 
 const checkAndMaybeShow = async () => {
   // Held false until this session's open/no-open decision is final — CommunitySlackInvite
@@ -167,10 +154,6 @@ const checkAndMaybeShow = async () => {
   isOpen.value = true;
   sessionStorage.setItem(sessionShownKey, "true");
   localStorage.removeItem(PENDING_KEY);
-  track("onboarding_prompt_shown");
-  if (showSlackInviteButton.value) {
-    track("community_slack_prompt_shown", { source: "connect_data_popup" });
-  }
 };
 
 // GetStarted (full-screen onboarding) dispatches this when it completes; for
@@ -208,7 +191,6 @@ onBeforeUnmount(() => {
 });
 
 const connectDataSource = () => {
-  track("onboarding_prompt_connect_clicked");
   isOpen.value = false;
   router.push({
     name: "ingestion",
@@ -217,7 +199,6 @@ const connectDataSource = () => {
 };
 
 const dismiss = () => {
-  track("onboarding_prompt_dismissed");
   isOpen.value = false;
 };
 
@@ -226,7 +207,6 @@ const joinSlackFromPopup = () => {
   window.open(slackUrl.value, "_blank", "noopener");
   markSlackInviteResolved(userEmail);
   showSlackInviteButton.value = false;
-  track("community_slack_prompt_joined", { source: "connect_data_popup" });
 };
 
 const handleOpenChange = (open: boolean) => {

@@ -30,9 +30,6 @@ vi.mock("@/lib/core/Code/OCodeBlock.vue", () => ({
 }));
 
 const track = vi.fn();
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: (...a: unknown[]) => track(...a) },
-}));
 
 const awsConfig = vi.hoisted(() => ({ isCloud: "false" }));
 vi.mock("@/aws-exports", () => ({ default: awsConfig }));

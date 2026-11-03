@@ -32,8 +32,6 @@ vi.mock("@/composables/useNotifications", () => ({
   default: () => ({ showErrorNotification: vi.fn() }),
 }));
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-
 vi.mock("@/composables/useStreams", () => ({
   default: () => ({
     getStreams: vi.fn().mockResolvedValue({ list: [{ name: "test-stream" }] }),

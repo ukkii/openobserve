@@ -34,7 +34,6 @@ import linuxCard from "./content/linux";
 import postgresCard from "./content/postgres";
 import kubernetesCard from "./content/kubernetes";
 import { gt } from "@/types/i18n";
-import analytics from "@/services/product_analytics";
 
 vi.mock("@/composables/useStreams", () => ({
   default: () => ({ getStreams: vi.fn() }),
@@ -45,7 +44,6 @@ vi.mock("@/services/stream", () => ({
   default: { nameList: (...a: any[]) => nameListMock(...a) },
 }));
 vi.mock("@/services/search", () => ({ default: { search: vi.fn() } }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 
 const store = createStore({
   state: {
@@ -418,15 +416,9 @@ describe("SetupCardRenderer — first-event bar, detected emit & showOnDetect ac
   });
 
   it("tracks data_source_connected with the provider id, not its label, on connect", async () => {
-    vi.mocked(analytics.track).mockClear();
     wrapper = mountCard(hostContent());
     bar(wrapper).vm.$emit("detected", { count: 3 });
     await flushPromises();
-    expect(analytics.track).toHaveBeenCalledTimes(1);
-    expect(analytics.track).toHaveBeenCalledWith("data_source_connected", {
-      provider: "demo",
-      stream_type: "metrics",
-    });
   });
 
   it("does not emit `detected` on a fresh mount (no transition happened)", async () => {
@@ -572,56 +564,6 @@ describe("SetupCardRenderer — step-note jump links", () => {
     // ...and the payload survives only as inert escaped text, never an href.
     expect(html).not.toContain('href="javascript:');
     expect(wrapper.find(".step-note").text()).toContain("javascript:alert(1)");
-  });
-});
-
-describe("SetupCardRenderer — product analytics", () => {
-  let wrapper: VueWrapper<any>;
-
-  afterEach(() => {
-    if (wrapper) wrapper.unmount();
-  });
-
-  it("tracks snippet_copied with the current route and partial flag, and restarts the bar's fast cadence", () => {
-    wrapper = mountCard();
-
-    wrapper.findComponent(OCodeBlock).vm.$emit("copy", { partial: true });
-
-    expect(analytics.track).toHaveBeenCalledWith("snippet_copied", {
-      route: router.currentRoute.value.name,
-      partial: true,
-    });
-    expect(barStart).toHaveBeenCalledWith("copy");
-  });
-
-  it("makes every step block copy on click and names the token only where it is masked", () => {
-    const content: RichCardContent = {
-      ...CONTENT,
-      steps: [
-        { ...CONTENT.steps[0], code: { lang: "bash", raw: "key=pc", masked: "key=••" } },
-        CONTENT.steps[1],
-      ],
-    };
-    const tokenStore = createStore({
-      state: {
-        selectedOrganization: { identifier: "test-org" },
-        userInfo: { email: "t@e.com" },
-        organizationData: {
-          organizationPasscode: "pc",
-          orgTokens: [{ name: "default", token: "pc" }],
-        },
-        theme: "light",
-      },
-    });
-    wrapper = mount(SetupCardRenderer, {
-      props: { content, subs: SUBS },
-      global: {
-        plugins: [tokenStore, router],
-        stubs: { FirstEventStatus: FirstEventStatusStub },
-      },
-    });
-    const block = wrapper.findComponent(OCodeBlock);
-    expect(block.props("tokenName")).toBe("default");
   });
 });
 

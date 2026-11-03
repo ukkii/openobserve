@@ -224,8 +224,6 @@ import ConfirmDialog from "../ConfirmDialog.vue";
 import { useRouter } from "vue-router";
 import type { DestinationPayload } from "@/ts/interfaces";
 import type { Template } from "@/ts/interfaces/index";
-
-import { useReo } from "@/services/reodotdev_analytics";
 import OButton from "@/lib/core/Button/OButton.vue";
 import ORefreshButton from "@/lib/core/RefreshButton/ORefreshButton.vue";
 import { useShortcuts } from "@/lib/vue-shortcut-manager";
@@ -275,7 +273,6 @@ export default defineComponent({
     const store = useStore();
     const editingDestination: Ref<DestinationPayload | null> = ref(null);
     const { t } = useI18nTyped();
-    const { track } = useReo();
     const columns: OTableColumnDef[] = [
       {
         id: "name",
@@ -496,12 +493,6 @@ export default defineComponent({
       return destinations.value.find((destination) => destination.name === name);
     };
     const editDestination = (destination: any) => {
-      if (!destination) {
-        track("Button Click", {
-          button: "Add Pipeline Destination",
-          page: "Pipeline Destinations",
-        });
-      }
       toggleDestinationEditor();
       resetEditingDestination();
       if (!destination) {

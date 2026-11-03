@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 const dashboards = {
   list: (
@@ -104,7 +103,6 @@ const dashboards = {
         { headers: { "Content-Type": "application/json; charset=UTF-8" } },
       )
       .then((res) => {
-        analytics.track("dashboard_moved", { count: dashboardIds.length });
         return res;
       });
   },

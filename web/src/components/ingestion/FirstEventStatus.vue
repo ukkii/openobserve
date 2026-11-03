@@ -24,7 +24,6 @@ import OButton from "@/lib/core/Button/OButton.vue";
 import OTag from "@/lib/core/Badge/OTag.vue";
 import OText from "@/lib/core/Typography/OText.vue";
 import config from "@/aws-exports";
-import analytics from "@/services/product_analytics";
 import { raw, useI18nTyped, type I18nKey, type I18nText } from "@/types/i18n";
 import { FIRST_EVENT_BUDGET, cadenceAt } from "@/composables/firstEvent/firstEventBudget";
 import { rangeRoute } from "@/composables/firstEvent/confirmQuery";
@@ -389,30 +388,12 @@ const hint = computed((): I18nText | undefined => {
     : t("ingestion.firstEvent.hintWaitingLate");
 });
 
-const secondsSinceSignup = (): number => {
-  const identifier = store.state.selectedOrganization?.identifier;
-  const created = Number(
-    store.state.selectedOrganization?.created_at ??
-      (store.state.organizations ?? []).find(
-        (o: { identifier?: string }) => o?.identifier === identifier,
-      )?.created_at ??
-      0,
-  );
-  if (!created) return -1;
-  const createdMs = created > 1e15 ? created / 1000 : created > 1e12 ? created : created * 1000;
-  return Math.max(0, Math.round((Date.now() - createdMs) / 1000));
-};
-
 let diagnosisReported = false;
 watch(state, (next, prev) => {
   emit("state", next);
   // Check again (or a copy) after the stop starts a new watch, which reports its own diagnosis
   if (prev === "stopped" && next === "waiting") diagnosisReported = false;
   if (next === "received" && prev !== "received" && result.value) {
-    analytics.track("first_event_detected", {
-      stream_type: result.value.streamType,
-      seconds_since_signup: secondsSinceSignup(),
-    });
     emit("detected", result.value);
   }
 });
@@ -422,10 +403,6 @@ watch(
   (d) => {
     if (diagnosisReported || !d || d.form === "unavailable") return;
     diagnosisReported = true;
-    analytics.track("first_event_diagnosis_shown", {
-      reason: d.form === "rejected" ? (d.rejections[0]?.reason ?? "rejected") : "no_requests",
-      trigger: d.trigger,
-    });
   },
 );
 

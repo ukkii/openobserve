@@ -244,7 +244,6 @@ import ExternalDestination from "./NodeForm/ExternalDestination.vue";
 import { contextRegistry, createPipelinesContextProvider } from "@/composables/contextProviders";
 import JsonEditor from "../common/JsonEditor.vue";
 import { validatePipeline as validatePipelineUtil } from "../../utils/validatePipeline";
-import { useReo } from "@/services/reodotdev_analytics";
 import { useEditorDraft } from "@/composables/useEditorDraft";
 import EditorDraftDialogs from "@/components/common/drafts/EditorDraftDialogs.vue";
 import { deleteEditorDraftsFor } from "@/utils/drafts/editorDraftStore";
@@ -504,8 +503,6 @@ const toggleJsonEditorAIChat = () => {
 
 const validationErrors = ref<string[]>([]);
 
-const { track } = useReo();
-
 // ── Pipeline name: OForm-owned ───────────────────────────────────────────────
 // A headless form so the teleported <OFormInlineEdit> validates via the schema
 // (submit-then-change timing; the inline error appears on the first save
@@ -556,43 +553,6 @@ watch(
     }
   },
   { flush: "sync", immediate: true },
-);
-
-// Watch for dialog changes to track node drops
-watch(
-  () => pipelineObj.dialog.show,
-  (newShow, oldShow) => {
-    // Track when dialog opens (node is dropped)
-    if (newShow && !oldShow && pipelineObj.dialog.name) {
-      let buttonName = "";
-
-      if (pipelineObj.dialog.name === "stream") {
-        // Check if it's input or output stream from the current selected node data
-        const ioType = pipelineObj.currentSelectedNodeData?.type;
-        if (ioType === "input") {
-          buttonName = "Add Input Stream Node";
-        } else if (ioType === "output") {
-          buttonName = "Add Output Stream Node";
-        } else {
-          buttonName = "Add Stream Node";
-        }
-      } else {
-        const nodeTypeMap: { [key: string]: string } = {
-          query: "Add Query Node",
-          condition: "Add Condition Node",
-          function: "Add Function Node",
-          remote_stream: "Add Remote Stream Node",
-        };
-        buttonName = nodeTypeMap[pipelineObj.dialog.name] || `Add ${pipelineObj.dialog.name}`;
-      }
-
-      track("Button Click", {
-        button: buttonName,
-        page: "Pipeline Editor",
-      });
-    }
-  },
-  { immediate: false },
 );
 
 const editPipelineId = (() => {
@@ -1039,10 +999,6 @@ const onSubmitPipeline = async (navigate = true): Promise<boolean> => {
   });
 
   const saveOperation = savePipelineWrite.mutateAsync(pipelineObj.currentSelectedPipeline);
-  track("Button Click", {
-    button: "Save Pipeline",
-    page: "Add Pipeline",
-  });
 
   try {
     await saveOperation;
@@ -1085,15 +1041,9 @@ const onSubmitPipeline = async (navigate = true): Promise<boolean> => {
 };
 
 const openCancelDialog = async () => {
-  const hadChanges = pipelineDraft.hasUnsavedChanges();
   leaveTarget = router.resolve(pipelinesRoute()).fullPath;
   if (!(await pipelineDraft.confirmLeave())) return;
-  if (hadChanges) {
-    track("Button Click", {
-      button: "Cancel Pipeline",
-      page: "Add Pipeline",
-    });
-  }
+
   goToPipelines();
 };
 

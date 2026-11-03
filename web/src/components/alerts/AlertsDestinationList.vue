@@ -449,7 +449,6 @@ import useDependencyGraph, {
   depNodeId,
 } from "@/composables/alerts/useDependencyGraph";
 import type { DepNodeKind } from "@/composables/alerts/useDependencyGraph";
-import { useReo } from "@/services/reodotdev_analytics";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
 import OButton from "@/lib/core/Button/OButton.vue";
 import ORefreshButton from "@/lib/core/RefreshButton/ORefreshButton.vue";
@@ -514,7 +513,6 @@ export default defineComponent({
     const editingDestination: Ref<DestinationPayload | null> = ref(null);
     const { t } = useI18nTyped();
     const { graph: depGraph, loadGraph: loadDepGraph } = useDependencyGraph();
-    const { track } = useReo();
     const destinationDrafts = useEditorDraftIds("alert_destination");
 
     const { detectPrebuiltType, availableTypes } = usePrebuiltDestinations();
@@ -877,12 +875,6 @@ export default defineComponent({
     };
     // Only the route's own Review may open the switch form; every other open drops its params.
     const editDestination = (destination?: DestinationPayload | null, fromRoute = false) => {
-      if (!destination) {
-        track("Button Click", {
-          button: "Add Destination",
-          page: "Alert Destinations",
-        });
-      }
       if (!showDestinationEditor.value) toggleDestinationEditor();
       resetEditingDestination();
       if (!destination) {

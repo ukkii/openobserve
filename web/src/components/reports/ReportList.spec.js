@@ -92,13 +92,6 @@ vi.mock("@/utils/commons", () => ({
   getFoldersListByType: vi.fn(() => Promise.resolve()),
 }));
 
-// Mock product analytics
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
 const node = document.createElement("div");
 node.setAttribute("id", "app");
 document.body.appendChild(node);

@@ -33,7 +33,6 @@ vi.mock("@/services/model_pricing", async (importOriginal) => {
       update: vi.fn(),
       delete: vi.fn(),
       getBuiltIn: vi.fn(),
-      refreshBuiltIn: vi.fn(),
       test: vi.fn(),
     },
   });
@@ -253,7 +252,6 @@ const mockI18n = createI18n({
         ruleOpIn: "is one of",
         matchingPriorityTooltip: "Your org > Global > Built-in",
         searchPlaceholder: "Search models...",
-        syncBuiltInPrices: "Sync built-in prices",
         testMatch: "Test match",
         moreActions: "More actions",
         modelDetails: "Model details",
@@ -293,12 +291,10 @@ const mockI18n = createI18n({
         deletedModelsNotif: "Deleted {count} models",
         modelEnabledNotif: "Enabled {name}",
         modelDisabledNotif: "Disabled {name}",
-        builtInPricesSynced: "Built-in prices synced",
         errLoadModels: "Failed to load models",
         errUpdate: "Failed to update",
         errDelete: "Failed to delete",
         errDeleteNamed: "Failed to delete {name}",
-        errSync: "Sync failed",
         errUnknown: "Unknown error",
         noModelsSelected: "No models selected",
         shadowBannerPrefix: "Shadowed by",
@@ -365,7 +361,6 @@ describe("ModelPricingList.vue", () => {
     } as any);
     vi.mocked(modelPricingService.update).mockResolvedValue({} as any);
     vi.mocked(modelPricingService.delete).mockResolvedValue({} as any);
-    vi.mocked(modelPricingService.refreshBuiltIn).mockResolvedValue({} as any);
     routerPushMock.mockReset();
     mockToastFn.mockReset();
   });
@@ -609,12 +604,9 @@ describe("ModelPricingList.vue", () => {
       expect(drawer.props("open")).toBe(false);
     });
 
-    it("labels the catalogue sync and test buttons by what they do", async () => {
+    it("labels the test button by what it does", async () => {
       wrapper = mountComponent();
       await flushPromises();
-      expect(wrapper.find('[data-test="model-pricing-refresh-btn"]').text()).toBe(
-        "Sync built-in prices",
-      );
       expect(wrapper.find('[data-test="model-pricing-test-match-btn"]').text()).toBe("Test match");
     });
   });
@@ -1039,37 +1031,6 @@ describe("ModelPricingList.vue", () => {
       await flushPromises();
 
       expect(mockToastFn).toHaveBeenCalledWith(expect.objectContaining({ variant: "error" }));
-    });
-  });
-
-  // ── refreshBuiltIn ───────────────────────────────────────────────────────
-
-  describe("refreshBuiltIn", () => {
-    it("notifies positive and refetches on success", async () => {
-      wrapper = mountComponent();
-      await flushPromises();
-      vi.mocked(modelPricingService.list).mockClear();
-
-      await wrapper.vm.refreshBuiltIn();
-      await flushPromises();
-
-      expect(modelPricingService.refreshBuiltIn).toHaveBeenCalledWith("test-org");
-      expect(modelPricingService.list).toHaveBeenCalled();
-      expect(mockToastFn).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: "success", message: "Built-in prices synced" }),
-      );
-    });
-
-    it("notifies negative when refresh fails", async () => {
-      wrapper = mountComponent();
-      await flushPromises();
-      vi.mocked(modelPricingService.refreshBuiltIn).mockRejectedValueOnce(new Error("nope"));
-
-      await wrapper.vm.refreshBuiltIn();
-      await flushPromises();
-
-      expect(mockToastFn).toHaveBeenCalledWith(expect.objectContaining({ variant: "error" }));
-      expect(wrapper.vm.refreshing).toBe(false);
     });
   });
 

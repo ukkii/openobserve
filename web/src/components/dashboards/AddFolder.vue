@@ -49,8 +49,6 @@ import { createFolder, updateFolder } from "@/utils/commons";
 import { useI18nTyped } from "@/types/i18n";
 import { useStore } from "vuex";
 import useNotifications from "@/composables/useNotifications";
-import { useReo } from "@/services/reodotdev_analytics";
-import analytics from "@/services/product_analytics";
 import OForm from "@/lib/forms/Form/OForm.vue";
 import OFormInput from "@/lib/forms/Input/OFormInput.vue";
 import { makeAddFolderSchema, type AddFolderForm } from "./AddFolder.schema";
@@ -76,7 +74,6 @@ export default defineComponent({
     const { t } = useI18nTyped();
     const addFolderSchema = makeAddFolderSchema(t);
     const { showPositiveNotification, showErrorNotification } = useNotifications();
-    const { track } = useReo();
 
     const { iconFor } = useFolderIcons();
 
@@ -133,7 +130,6 @@ export default defineComponent({
             description,
             icon,
           });
-          analytics.track("dashboard_folder_created");
           emit("update:modelValue", newFolder);
           showPositiveNotification(t("dashboard.addFolder.folderAdded"), {
             timeout: 2000,
@@ -148,10 +144,6 @@ export default defineComponent({
           { timeout: 2000 },
         );
       }
-      track("Button Click", {
-        button: "Save New Folder",
-        page: "Dashboards",
-      });
     };
 
     return {

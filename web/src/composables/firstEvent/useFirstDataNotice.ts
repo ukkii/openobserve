@@ -17,7 +17,6 @@ import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import { queryClient } from "@/composables/query/queryClient";
 import { streamPageQuery, streamProbeQuery, STREAM_PROBE_PAGE } from "@/services/stream.queries";
-import analytics from "@/services/product_analytics";
 import {
   USER_DATA_STREAM_TYPES,
   isUserDataStream,
@@ -203,7 +202,6 @@ export function useFirstDataNotice(
         : undefined;
       visible.value = true;
       next.shown = true;
-      analytics.track("first_data_notice_shown", { stream_type: first?.streamType ?? "logs" });
     }
     writeFirstDataRecord(orgId, next);
   };

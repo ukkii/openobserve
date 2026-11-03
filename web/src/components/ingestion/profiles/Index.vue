@@ -37,7 +37,6 @@ import { useI18nTyped } from "@/types/i18n";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import { copyToClipboard } from "@/utils/clipboard";
-import analytics from "@/services/product_analytics";
 import { getImageURL } from "@/utils/zincutils";
 import { resolveTab } from "@/utils/routeTabMaps";
 
@@ -105,16 +104,7 @@ export default defineComponent({
         successMessage: t("common.contentCopiedSuccessfully"),
         errorMessage: t("ingestion.copyContentError"),
         timeout: 5000,
-      }).then((success: boolean) => {
-        if (success) {
-          analytics.track("Button Click", {
-            button: "Copy to Clipboard",
-            ingestion: currentRouteName(),
-            user_org: store.state.selectedOrganization.identifier,
-            page: "Ingestion",
-          });
-        }
-      });
+      }).then((_success: boolean) => {});
     };
 
     return {

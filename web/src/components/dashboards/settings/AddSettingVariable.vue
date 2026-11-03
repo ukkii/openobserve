@@ -548,7 +548,6 @@ import { getScopeType } from "@/utils/dashboard/variables/variablesScopeUtils";
 import OFormCombobox from "@/lib/forms/Combobox/OFormCombobox.vue";
 import useNotifications from "@/composables/useNotifications";
 import { useDashboardSaveConflict } from "@/composables/dashboard/useDashboardSaveConflict";
-import analytics from "@/services/product_analytics";
 
 export default defineComponent({
   name: "AddSettingVariable",
@@ -1230,7 +1229,6 @@ export default defineComponent({
             payload,
             route.query.folder ?? "default",
           );
-          analytics.track("dashboard_variable_saved", { type: payload.type, is_new: false });
           lastSaveSucceeded = true;
           releaseDraftSection();
           emit("save");
@@ -1257,7 +1255,6 @@ export default defineComponent({
       } else {
         try {
           await addVariable(t, store, dashId, payload, route.query.folder ?? "default");
-          analytics.track("dashboard_variable_saved", { type: payload.type, is_new: true });
           lastSaveSucceeded = true;
           releaseDraftSection();
           emit("save");

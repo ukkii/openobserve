@@ -206,8 +206,6 @@ import { defineComponent, ref, computed } from "vue";
 import jsTransformService from "../../services/jstransform";
 import { useI18nTyped, raw } from "@/types/i18n";
 import { useStore } from "vuex";
-import analytics from "../../services/product_analytics";
-import { useReo } from "@/services/reodotdev_analytics";
 import OForm from "@/lib/forms/Form/OForm.vue";
 import { useOForm } from "@/lib/forms/Form/useOForm";
 import OFormInput from "@/lib/forms/Input/OFormInput.vue";
@@ -270,7 +268,6 @@ export default defineComponent({
     const editorRef: any = ref(null);
     let editorobj: any = null;
     const isFetchingStreams = ref(false);
-    const { track } = useReo();
 
     let compilationErr = ref("");
 
@@ -381,8 +378,6 @@ export default defineComponent({
           } else if (value.updateMode === "replace_failed") {
             // Replace failed URL only
             replaceFailedFlag = true;
-          } else if (value.updateMode === "replace") {
-            // Replace: Delete all and use new URL (all flags false)
           }
         }
 
@@ -419,21 +414,6 @@ export default defineComponent({
           }
           dismiss();
         }
-
-        analytics.track("Button Click", {
-          button: props.isUpdating
-            ? `Update Enrichment Table (${value.updateMode})`
-            : "Save Enrichment Table from URL",
-          user_org: store.state.selectedOrganization.identifier,
-          function_name: value.name,
-          page: "Add/Update Enrichment Table",
-        });
-        track("Button Click", {
-          button: props.isUpdating
-            ? `Update Enrichment Table (${value.updateMode})`
-            : "Save Enrichment Table from URL",
-          page: "Add/Update Enrichment Table",
-        });
       }
       // Handle file upload enrichment table creation (existing logic)
       else {
@@ -467,17 +447,6 @@ export default defineComponent({
           }
           dismiss();
         }
-
-        analytics.track("Button Click", {
-          button: "Save Enrichment Table",
-          user_org: store.state.selectedOrganization.identifier,
-          function_name: value.name,
-          page: "Add/Update Enrichment Table",
-        });
-        track("Button Click", {
-          button: "Save Enrichment Table",
-          page: "Add Enrichment Table",
-        });
       }
     };
 

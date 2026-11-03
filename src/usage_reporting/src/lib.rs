@@ -149,11 +149,9 @@ pub fn publish_auto_investigate_decision(row: DecisionRow) {
 pub async fn publish_error(error_data: ErrorData) {
     let cfg = get_config();
     #[cfg(not(feature = "enterprise"))]
-    {
-        if !cfg.common.usage_reporting_errors_enabled {
-            log::debug!("[SELF-REPORTING] Skipping error publish - error reporting disabled");
-            return;
-        }
+    if !cfg.common.usage_reporting_errors_enabled {
+        log::debug!("[SELF-REPORTING] Skipping error publish - error reporting disabled");
+        return;
     }
 
     let timeout_duration = Duration::from_secs(cfg.common.error_publish_timeout_secs);

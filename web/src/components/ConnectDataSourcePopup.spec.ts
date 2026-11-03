@@ -31,10 +31,7 @@ vi.mock("@/aws-exports", () => ({
   default: mockConfig,
 }));
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-
 import ConnectDataSourcePopup from "./ConnectDataSourcePopup.vue";
-import analytics from "@/services/product_analytics";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const USER_EMAIL = "example@gmail.com"; // matches store.ts userInfo.email
@@ -179,10 +176,6 @@ describe("ConnectDataSourcePopup", () => {
       await flushPromises();
 
       expect(wrapper.find('[data-test="o-dialog-stub"]').attributes("data-open")).toBe("true");
-      expect(analytics.track).toHaveBeenCalledWith(
-        "onboarding_prompt_shown",
-        expect.objectContaining({ org_id: "default", user_id: USER_EMAIL }),
-      );
     });
 
     it("stays closed and dispatches setIsDataIngested(true) when the org already has data", async () => {
@@ -195,10 +188,6 @@ describe("ConnectDataSourcePopup", () => {
 
       expect(wrapper.find('[data-test="o-dialog-stub"]').attributes("data-open")).toBe("false");
       expect(store.state.organizationData.isDataIngested).toBe(true);
-      expect(analytics.track).not.toHaveBeenCalledWith(
-        "onboarding_prompt_shown",
-        expect.anything(),
-      );
     });
   });
 
@@ -324,11 +313,6 @@ describe("ConnectDataSourcePopup", () => {
       const connectBtn = wrapper.find('[data-test="connect-data-source-popup-connect-btn"]');
 
       await connectBtn.trigger("click");
-
-      expect(analytics.track).toHaveBeenCalledWith(
-        "onboarding_prompt_connect_clicked",
-        expect.objectContaining({ org_id: "default", user_id: USER_EMAIL }),
-      );
       expect(routerSpy).toHaveBeenCalledWith({
         name: "ingestion",
         query: { org_identifier: "default" },
@@ -340,23 +324,7 @@ describe("ConnectDataSourcePopup", () => {
       const closeBtn = wrapper.find('[data-test="o-dialog-close-btn"]');
 
       await closeBtn.trigger("click");
-
-      expect(analytics.track).toHaveBeenCalledWith(
-        "onboarding_prompt_dismissed",
-        expect.objectContaining({ org_id: "default", user_id: USER_EMAIL }),
-      );
       expect(wrapper.find('[data-test="o-dialog-stub"]').attributes("data-open")).toBe("false");
-    });
-
-    it("fires the dismissed event exactly once when closed via overlay/Escape (update:open=false)", async () => {
-      const dialogStub = wrapper.findComponent(ODialogStub);
-
-      await dialogStub.vm.$emit("update:open", false);
-
-      const dismissedCalls = (analytics.track as ReturnType<typeof vi.fn>).mock.calls.filter(
-        ([event]) => event === "onboarding_prompt_dismissed",
-      );
-      expect(dismissedCalls).toHaveLength(1);
     });
   });
 
@@ -402,10 +370,6 @@ describe("ConnectDataSourcePopup", () => {
       );
       const record = JSON.parse(localStorage.getItem(SLACK_STATE_KEY) ?? "{}");
       expect(record.status).toBe("pending_day2");
-      expect(analytics.track).toHaveBeenCalledWith(
-        "community_slack_prompt_shown",
-        expect.objectContaining({ source: "connect_data_popup" }),
-      );
     });
 
     it("does not render the Slack link once the invite is already resolved", async () => {
@@ -426,10 +390,6 @@ describe("ConnectDataSourcePopup", () => {
 
       const record = JSON.parse(localStorage.getItem(SLACK_STATE_KEY) ?? "{}");
       expect(record.status).toBe("pending_day2");
-      expect(analytics.track).not.toHaveBeenCalledWith(
-        "community_slack_prompt_shown",
-        expect.anything(),
-      );
     });
 
     it("clicking the Slack link opens Slack, marks resolved, and does not close the popup", async () => {

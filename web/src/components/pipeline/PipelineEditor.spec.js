@@ -74,10 +74,6 @@ vi.mock("@/services/pipelines", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({ track: vi.fn() }),
-}));
-
 vi.mock("@vue-flow/core", () => ({
   MarkerType: { ArrowClosed: "arrowclosed" },
   useVueFlow: () => ({

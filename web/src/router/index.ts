@@ -16,38 +16,40 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { getDecodedUserInfo, getPath, mergeRoutes } from "@/utils/zincutils";
 import { gt } from "@/types/i18n";
-import { openobserveRum } from "@openobserve/browser-rum";
-import config from "@/aws-exports";
+import { builtInRoleCanMutate } from "@/composables/useBuiltInRole";
 
-import userCloudRoutes from "@/enterprise/composables/router";
 import userRoutes from "@/composables/shared/router";
 import useOSRoutes from "@/composables/router";
+
+const VIEWER_MUTATION_ROUTES = new Set([
+  "addPanel",
+  "importDashboard",
+  "createPipeline",
+  "pipelineEditor",
+  "importPipeline",
+  "addAlert",
+  "editAlert",
+  "addAnomalyDetection",
+  "editAnomalyDetection",
+  "addSlo",
+  "editSlo",
+  "addDowntime",
+  "editDowntime",
+]);
+
+export function builtInRoleMayNavigate(role: unknown, routeName: unknown): boolean {
+  return builtInRoleCanMutate(role) || !VIEWER_MUTATION_ROUTES.has(String(routeName ?? ""));
+}
 
 export default function (store: any) {
   let { parentRoutes, homeChildRoutes } = userRoutes();
 
-  let envRoutes: any;
-  if (config.isCloud == "true" || config.isEnterprise == "true") {
-    envRoutes = userCloudRoutes();
-  } else {
-    envRoutes = useOSRoutes();
-  }
+  const envRoutes: any = useOSRoutes();
 
   // parentRoutes = parentRoutes.concat(envRoutes.parentRoutes);
   // homeChildRoutes = homeChildRoutes.concat(envRoutes.homeChildRoutes);
   parentRoutes = mergeRoutes(parentRoutes, envRoutes.parentRoutes);
   homeChildRoutes = mergeRoutes(homeChildRoutes, envRoutes.homeChildRoutes);
-
-  // Merge enterprise pipeline children (eval templates, etc.) as direct children of pipeline
-  if (envRoutes.pipelineChildren) {
-    const pipelineRoute = homeChildRoutes.find((r: any) => r.path === "pipeline");
-    if (pipelineRoute) {
-      pipelineRoute.children = mergeRoutes(
-        pipelineRoute.children || [],
-        envRoutes.pipelineChildren,
-      );
-    }
-  }
 
   // Filter out catchall route from homeChildRoutes
   const catchAllRoute = homeChildRoutes.find((r: any) => r.path === "/:catchAll(.*)*");
@@ -102,6 +104,12 @@ export default function (store: any) {
       return;
     }
 
+    const role = store.state.currentuser?.role ?? store.state.userInfo?.role;
+    if (isAuthenticated && !builtInRoleMayNavigate(role, to.name)) {
+      next({ name: "home" });
+      return;
+    }
+
     if (
       !isAuthenticated &&
       (to.meta?.public === true ||
@@ -147,9 +155,5 @@ export default function (store: any) {
     }
   });
 
-  // Route names keep RUM view names low-cardinality; paths embed entity ids.
-  router.afterEach((to: any, _from: any, failure: any) => {
-    if (!failure && to.name) openobserveRum.setViewName(String(to.name));
-  });
   return router;
 }

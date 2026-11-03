@@ -23,7 +23,6 @@ import { copyToClipboard } from "@/utils/clipboard";
 import CredentialCodeBlock from "./CredentialCodeBlock.vue";
 
 vi.mock("@/utils/clipboard", () => ({ copyToClipboard: vi.fn(async () => true) }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 const credentialApi = vi.hoisted(() => ({
   get_organization_passcode: vi.fn(),
   list_org_ingestion_tokens: vi.fn(),

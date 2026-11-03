@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 export interface AiUsage {
   credits_used: number;
@@ -53,7 +52,6 @@ const billings = {
     return http()
       .get(`/api/${org_identifier}/billings/resume_subscription`)
       .then((res) => {
-        analytics.track("billing_plan_subscribed");
         return res;
       });
   },

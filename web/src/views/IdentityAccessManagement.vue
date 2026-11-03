@@ -39,16 +39,12 @@ import { type SectionHubGroup } from "@/components/common/SectionHub.vue";
 import { computed, watch } from "vue";
 import { raw, useI18nTyped } from "@/types/i18n";
 import { useStore } from "vuex";
-import config from "@/aws-exports";
 import { useRouter, useRoute, RouterView } from "vue-router";
-import useIsMetaOrg from "@/composables/useIsMetaOrg";
-import { checkFeatureAccess, buildFeatureGateContext } from "@/utils/enterpriseFeatures";
 
 const store = useStore();
 const { t } = useI18nTyped();
 const router = useRouter();
 const route = useRoute();
-const { isMetaOrg } = useIsMetaOrg();
 
 const orgQuery = computed(() => ({
   org_identifier: store.state.selectedOrganization?.identifier,
@@ -61,21 +57,12 @@ const routeToIamTab: Record<string, string> = {
   ingestionTokens: "ingestionTokens",
   syntheticsTokens: "syntheticsTokens",
   mcpServer: "mcpServer",
-  groups: "groups",
-  editGroup: "groups",
-  roles: "roles",
-  editRole: "roles",
-  quota: "quota",
   organizations: "organizations",
-  invitations: "invitations",
 };
 const activeSection = computed(() => routeToIamTab[route.name as string] ?? "");
 
 const sectionGroups = computed<SectionHubGroup[]>(() => {
-  const isCloud = config.isCloud == "true";
-  const meta = isMetaOrg.value;
   const svc = store.state.zoConfig.service_account_enabled ?? true;
-  const rbacAccess = checkFeatureAccess("rbac", buildFeatureGateContext(store.state.zoConfig));
 
   const groups: SectionHubGroup[] = [
     {
@@ -126,56 +113,6 @@ const sectionGroups = computed<SectionHubGroup[]>(() => {
           // useEnterpriseRoutes.ts.
           dataTest: "iam-mcp-server-tab",
         },
-        {
-          key: "invitations",
-          label: t("iam.invitations"),
-          description: t("iam.invitationsDesc"),
-          icon: "mail",
-          to: { name: "invitations", query: orgQuery.value },
-          visible: isCloud,
-          dataTest: "iam-invitations-tab",
-        },
-      ],
-    },
-    {
-      label: t("iam.sectionPermissions"),
-      items: [
-        {
-          key: "groups",
-          label: t("iam.groups"),
-          description: t("iam.groupsDesc"),
-          icon: "group",
-          to: { name: "groups", query: orgQuery.value },
-          locked: !rbacAccess.allowed,
-          lockedMessage: rbacAccess.message,
-          lockedShowUpgradeCta: rbacAccess.ctaRelevant,
-          dataTest: "iam-groups-tab",
-        },
-        {
-          key: "roles",
-          label: t("iam.roles"),
-          description: t("iam.rolesDesc"),
-          icon: "shield",
-          to: { name: "roles", query: orgQuery.value },
-          locked: !rbacAccess.allowed,
-          lockedMessage: rbacAccess.message,
-          lockedShowUpgradeCta: rbacAccess.ctaRelevant,
-          dataTest: "iam-roles-tab",
-        },
-        {
-          key: "quota",
-          label: t("iam.quota"),
-          description: t("iam.quotaDesc"),
-          icon: "speed",
-          to: { name: "quota", query: orgQuery.value },
-          // Meta-org is a cluster-topology restriction, not an edition
-          // upsell — stays a hide, not a lock.
-          visible: meta,
-          locked: !rbacAccess.allowed,
-          lockedMessage: rbacAccess.message,
-          lockedShowUpgradeCta: rbacAccess.ctaRelevant,
-          dataTest: "iam-quota-tab",
-        },
       ],
     },
     {
@@ -205,8 +142,6 @@ watch(
       // .catch: in unit tests the mounted router may not register child routes;
       // a rejected navigation must not surface as an unhandled error.
       Promise.resolve(router.replace({ name: "users", query: orgQuery.value })).catch(() => {});
-    } else if (name === "quota" && !isMetaOrg.value) {
-      Promise.resolve(router.push({ name: "users", query: orgQuery.value })).catch(() => {});
     }
   },
   { immediate: true },

@@ -31,10 +31,10 @@ use openobserve_api_management::request::org_domains;
 #[cfg(feature = "cpu-profiling")]
 use openobserve_api_management::request::profiling;
 use openobserve_api_management::request::{
-    alerts, announcements, authz, dashboards, db_monitoring, downtimes, folders, ingest_rejections,
-    kv, metrics_usage, model_pricing, organization, public_dashboards, query_history,
-    rum_analytics, service_accounts, short_url, slack, slos, sourcemaps, status, status_pages,
-    stream, synthetics, users,
+    alerts, announcements, authz, dashboards, db_monitoring, downtimes, folders, google_auth,
+    ingest_rejections, kv, metrics_usage, model_pricing, organization, public_dashboards,
+    query_history, rum_analytics, service_accounts, short_url, slack, slos, sourcemaps, status,
+    status_pages, stream, synthetics, users,
 };
 #[cfg(feature = "cloud")]
 use openobserve_api_management::request::{cloud, organization::billing_group};
@@ -1101,6 +1101,9 @@ pub fn config_routes() -> Router {
         .route_layer(middleware::from_fn(password_policy_middleware))
         .route_layer(middleware::from_fn(auth_middleware))
         .route("/", get(status::zo_config_bootstrap))
+        .route("/google_login", get(google_auth::login))
+        .route("/google_callback", get(google_auth::callback))
+        .route("/google_session", get(google_auth::session))
         .route("/logout", get(status::logout))
 }
 
@@ -1111,6 +1114,9 @@ pub fn config_routes() -> Router {
         .route_layer(middleware::from_fn(password_policy_middleware))
         .route_layer(middleware::from_fn(auth_middleware))
         .route("/", get(status::zo_config_bootstrap))
+        .route("/google_login", get(google_auth::login))
+        .route("/google_callback", get(google_auth::callback))
+        .route("/google_session", get(google_auth::session))
         .route("/logout", get(status::logout))
         .route("/redirect", get(status::redirect))
         .route("/dex_login", get(status::dex_login))
@@ -1343,7 +1349,6 @@ pub fn service_routes() -> Router {
         .route("/{org_id}/llm/models", get(model_pricing::list).post(model_pricing::create))
         // NOTE: named routes MUST be registered before {model_id} or they match as a model ID
         .route("/{org_id}/llm/models/built-in", get(model_pricing::get_built_in))
-        .route("/{org_id}/llm/models/refresh-built-in", post(model_pricing::refresh_built_in))
         .route("/{org_id}/llm/models/test", post(model_pricing::test_model_match))
         .route("/{org_id}/llm/models/{model_id}", get(model_pricing::get).put(model_pricing::update).delete(model_pricing::delete))
 
@@ -1591,6 +1596,7 @@ pub fn service_routes() -> Router {
 
         // MCP
         .route("/{org_id}/mcp", get(mcp::handle_mcp_get).post(mcp::handle_mcp_post).delete(mcp::handle_mcp_delete))
+        .merge(mcp::credential_routes())
 
         // sourcemaps
         .route("/{org_id}/sourcemaps",get(sourcemaps::list).post(sourcemaps::upload_maps).delete(sourcemaps::delete))
@@ -2929,6 +2935,35 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "enterprise"))]
+    #[test]
+    fn every_documented_non_get_route_has_a_viewer_classification() {
+        let spec = super::openapi::ApiDoc::openapi();
+        let mut unclassified = Vec::new();
+        for (path, item) in &spec.paths.paths {
+            for (method, documented) in [
+                ("POST", item.post.is_some()),
+                ("PUT", item.put.is_some()),
+                ("DELETE", item.delete.is_some()),
+                ("PATCH", item.patch.is_some()),
+                ("HEAD", item.head.is_some()),
+                ("OPTIONS", item.options.is_some()),
+                ("TRACE", item.trace.is_some()),
+            ] {
+                if documented
+                    && openobserve_core::authz::classify_viewer_non_get(method, path).is_none()
+                {
+                    unclassified.push(format!("{method} {path}"));
+                }
+            }
+        }
+        unclassified.sort();
+        assert!(
+            unclassified.is_empty(),
+            "classify every non-GET route for Viewer: {unclassified:#?}"
+        );
+    }
+
     #[cfg(feature = "enterprise")]
     #[test]
     fn audit_redacts_every_secret_write_body() {
@@ -3846,9 +3881,9 @@ mod tests {
                 "custom_logo_img",
                 "custom_logo_text",
                 "editor_suggest_mode",
+                "google_login_enabled",
                 "native_login_enabled",
                 "sso_enabled",
-                "telemetry_enabled",
             ],
             "unauthenticated /config must expose exactly the login-page bootstrap fields"
         );

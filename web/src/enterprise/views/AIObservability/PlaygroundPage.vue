@@ -313,7 +313,6 @@ import ODropdown from "@/lib/overlay/Dropdown/ODropdown.vue";
 import ODropdownItem from "@/lib/overlay/Dropdown/ODropdownItem.vue";
 import OPageLayout from "@/lib/core/PageLayout/OPageLayout.vue";
 import { toast } from "@/lib/feedback/Toast/useToast";
-import analytics from "@/services/product_analytics";
 import { copyToClipboard } from "@/utils/clipboard";
 import { computeUserOrgKey } from "@/utils/userOrgKey";
 import PlaygroundExpectedBar from "@/enterprise/components/AIObservability/PlaygroundExpectedBar.vue";
@@ -710,18 +709,14 @@ async function onRunAll() {
   if (runDisabled.value) return;
   runningAll.value = true;
   try {
-    const outcomes = await Promise.allSettled(
-      draft.variants.map((variant) => runVariant(variant.id, true)),
-    );
-    const completed = outcomes.filter((o) => o.status === "fulfilled" && o.value).length;
-    if (completed > 0) analytics.track("llm_playground_run_completed", { count: completed });
+    await Promise.allSettled(draft.variants.map((variant) => runVariant(variant.id, true)));
   } finally {
     runningAll.value = false;
   }
 }
 
 async function onRunVariant(variantId: string) {
-  if (await runVariant(variantId)) analytics.track("llm_playground_run_completed", { count: 1 });
+  await runVariant(variantId);
 }
 
 function runVariant(variantId: string, skipGate = false): Promise<boolean> {

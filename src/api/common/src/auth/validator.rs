@@ -1303,11 +1303,77 @@ async fn session_grants_token(session_id: &str, token: &str) -> bool {
     matches!(db::session::get(session_id).await, Ok(stored) if stored == token)
 }
 
+fn community_user_for_path(db_user: DBUser, path: &str, is_root: bool) -> Option<User> {
+    let is_allowed_role = |user: &User| {
+        !matches!(
+            user.role,
+            UserRole::ServiceAccount | UserRole::SreAgent | UserRole::User
+        )
+    };
+    if path.split('/').next_back() == Some("organizations") || is_root || is_org_agnostic_path(path)
+    {
+        let users = db_user
+            .get_all_users()
+            .into_iter()
+            .filter(is_allowed_role)
+            .collect::<Vec<_>>();
+        users
+            .iter()
+            .find(|user| user.org == config::META_ORG_ID)
+            .cloned()
+            .or_else(|| users.into_iter().next())
+    } else {
+        let columns = path.split('/').collect::<Vec<_>>();
+        db_user
+            .get_user(org_from_path(&columns).to_string())
+            .filter(is_allowed_role)
+    }
+}
+
+async fn validate_community_session(
+    req_data: &RequestData,
+    auth_info: &AuthExtractor,
+    path_prefix: &str,
+    email: &str,
+) -> Result<AuthValidationResult, AuthError> {
+    let uri_path = req_data.uri.path();
+    let path = routed_path(uri_path.strip_prefix(path_prefix).unwrap_or(uri_path));
+    let user = db::user::get_user_by_email(email)
+        .await
+        .and_then(|user| community_user_for_path(user, path, is_root_user(email)))
+        .ok_or_else(|| AuthError::Unauthorized("Unauthorized Access".to_string()))?;
+
+    if !check_permissions(
+        &user.email,
+        auth_info.clone(),
+        user.role.clone(),
+        user.is_external,
+    )
+    .await
+    {
+        return Err(AuthError::Forbidden("Unauthorized Access".to_string()));
+    }
+
+    Ok(AuthValidationResult {
+        user_email: user.email,
+        user_role: Some(user.role),
+        is_internal_user: !user.is_external,
+        token_name: None,
+        delegation: None,
+    })
+}
+
 async fn oo_validator_internal(
     req_data: &RequestData,
     auth_info: &AuthExtractor,
     path_prefix: &str,
 ) -> Result<AuthValidationResult, AuthError> {
+    #[cfg(not(feature = "enterprise"))]
+    if let Some(token) = auth_info.auth.strip_prefix("Bearer ")
+        && token.starts_with(openobserve_core::mcp_credentials::TOKEN_PREFIX)
+    {
+        return validate_mcp_credential(req_data, auth_info, token).await;
+    }
     // Format: "Session::<session_id>::<actual_token>"
     let (is_from_session, auth_str) = match auth_info.auth.strip_prefix(SESSION_AUTH_MARKER) {
         Some(rest) => match rest.split_once("::") {
@@ -1319,7 +1385,12 @@ async fn oo_validator_internal(
         None => (false, auth_info.auth.clone()),
     };
 
-    if let Some(info) = auth_str.strip_prefix("Basic ").map(str::trim) {
+    if let Some(email) = is_from_session
+        .then(|| auth_str.strip_prefix("Community ").map(str::trim))
+        .flatten()
+    {
+        validate_community_session(req_data, auth_info, path_prefix, email).await
+    } else if let Some(info) = auth_str.strip_prefix("Basic ").map(str::trim) {
         let decoded = match base64::decode(info) {
             Ok(val) => val,
             Err(_) => return Err(AuthError::Unauthorized("Unauthorized Access".to_string())),
@@ -1390,6 +1461,35 @@ async fn oo_validator_internal(
         // Missing or unrecognized auth - return WWW-Authenticate header
         Err(AuthError::Unauthorized("Unauthorized Access".to_string()))
     }
+}
+
+#[cfg(not(feature = "enterprise"))]
+async fn validate_mcp_credential(
+    req_data: &RequestData,
+    auth_info: &AuthExtractor,
+    token: &str,
+) -> Result<AuthValidationResult, AuthError> {
+    use openobserve_core::mcp_credentials;
+
+    let path = routed_path(req_data.uri.path());
+    let columns = path.split('/').collect::<Vec<_>>();
+    let org = urlencoding::decode(org_from_path(&columns))
+        .map_err(|_| AuthError::Forbidden("MCP access denied".to_string()))?;
+    let (email, role) = mcp_credentials::validate(token, &org)
+        .await
+        .map_err(|_| AuthError::Unauthorized("Invalid MCP credential".to_string()))?;
+    if !mcp_credentials::request_allowed(&auth_info.method, &auth_info.o2_type) {
+        return Err(AuthError::Forbidden(
+            "MCP credential is read-only".to_string(),
+        ));
+    }
+    Ok(AuthValidationResult {
+        user_email: email,
+        user_role: Some(role),
+        is_internal_user: true,
+        token_name: None,
+        delegation: None,
+    })
 }
 
 /// Validates the authentication information in the incoming request and returns the result if
@@ -3025,6 +3125,157 @@ CN5lTowpVXP2OIiiNTGa75Fj
         assert!(!is_org_agnostic_path("license/refresh/now"));
         assert!(!is_org_agnostic_path("license/refresh/"));
         assert!(!is_org_agnostic_path("acme/license/refresh"));
+    }
+
+    #[test]
+    fn community_session_resolves_org_lists_root_and_org_agnostic_paths() {
+        let db_user = DBUser {
+            email: "viewer@example.com".to_string(),
+            first_name: "View".to_string(),
+            last_name: "Only".to_string(),
+            password: String::new(),
+            salt: String::new(),
+            organizations: vec![
+                config::meta::user::UserOrg {
+                    name: "login-only".to_string(),
+                    org_name: "Login only".to_string(),
+                    token: String::new(),
+                    rum_token: None,
+                    role: UserRole::User,
+                },
+                config::meta::user::UserOrg {
+                    name: "acme".to_string(),
+                    org_name: "Acme".to_string(),
+                    token: String::new(),
+                    rum_token: None,
+                    role: UserRole::Viewer,
+                },
+            ],
+            is_external: false,
+            password_ext: None,
+        };
+
+        let org_list_user =
+            community_user_for_path(db_user.clone(), "organizations", false).unwrap();
+        assert_eq!(org_list_user.org, "acme");
+        assert_eq!(org_list_user.role, UserRole::Viewer);
+        assert!(community_user_for_path(db_user.clone(), "login-only/streams", false).is_none());
+        assert_eq!(
+            community_user_for_path(db_user.clone(), "license", false)
+                .unwrap()
+                .role,
+            UserRole::Viewer
+        );
+        assert_eq!(
+            community_user_for_path(db_user.clone(), "other/streams", true)
+                .unwrap()
+                .role,
+            UserRole::Viewer
+        );
+        assert_eq!(
+            community_user_for_path(db_user, "acme/streams", false)
+                .unwrap()
+                .role,
+            UserRole::Viewer
+        );
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[tokio::test]
+    async fn mcp_credentials_authenticate_live_users_and_deny_writes_and_other_orgs() {
+        infra::db::create_table().await.unwrap();
+        infra::table::create_user_tables().await.unwrap();
+        infra::table::sessions::create_table().await.unwrap();
+        let org = format!("mcp-auth-{}", config::ider::uuid());
+        organization::check_and_create_org_without_ofga(&org)
+            .await
+            .unwrap();
+        for role in [
+            UserRole::Viewer,
+            UserRole::Editor,
+            UserRole::Admin,
+            UserRole::Root,
+        ] {
+            let email = format!("{role}-{org}@example.com").to_lowercase();
+            seed_user_without_password_ext(&org, &email, role.clone(), "Complexpass#123", "").await;
+            let issued = openobserve_core::mcp_credentials::issue(&email, &org)
+                .await
+                .unwrap();
+            for (method, suffix, template, allowed) in [
+                (Method::GET, "streams", "/{org_id}/streams", true),
+                (Method::POST, "_search", "/{org_id}/_search", true),
+                (Method::POST, "mcp", "/{org_id}/mcp", true),
+                (Method::POST, "users", "/{org_id}/users", false),
+                (
+                    Method::POST,
+                    "mcp/credentials",
+                    "/{org_id}/mcp/credentials",
+                    false,
+                ),
+                (Method::DELETE, "streams", "/{org_id}/streams", false),
+                (Method::GET, "passcode", "/{org_id}/passcode", false),
+                (
+                    Method::GET,
+                    "ingestion-tokens",
+                    "/{org_id}/ingestion-tokens",
+                    false,
+                ),
+                (
+                    Method::GET,
+                    "service_accounts",
+                    "/{org_id}/service_accounts",
+                    false,
+                ),
+                (
+                    Method::GET,
+                    "settings/v2/key",
+                    "/{org_id}/settings/v2/{key}",
+                    false,
+                ),
+                (
+                    Method::GET,
+                    "alerts/destinations",
+                    "/{org_id}/alerts/destinations",
+                    false,
+                ),
+                (Method::GET, "pipelines", "/{org_id}/pipelines", false),
+                (Method::GET, "cipher_keys", "/{org_id}/cipher_keys", false),
+                (
+                    Method::GET,
+                    "future_secret_api",
+                    "/{org_id}/future_secret_api",
+                    false,
+                ),
+            ] {
+                let req = RequestData {
+                    uri: format!("/{org}/{suffix}").parse().unwrap(),
+                    method: method.clone(),
+                    headers: HeaderMap::new(),
+                };
+                let mut auth =
+                    AuthExtractor::bypass(format!("Bearer {}", issued.token), org.clone());
+                auth.method = method.to_string();
+                auth.o2_type = template.to_owned();
+                assert_eq!(
+                    oo_validator(&req, &auth).await.is_ok(),
+                    allowed,
+                    "{role} {method} {suffix}"
+                );
+                let other = RequestData {
+                    uri: format!("/other-org/{suffix}").parse().unwrap(),
+                    ..req
+                };
+                assert!(oo_validator(&other, &auth).await.is_err());
+            }
+            openobserve_core::mcp_credentials::revoke(&email, &org)
+                .await
+                .unwrap();
+            assert!(
+                openobserve_core::mcp_credentials::validate(&issued.token, &org)
+                    .await
+                    .is_err()
+            );
+        }
     }
 
     #[tokio::test]

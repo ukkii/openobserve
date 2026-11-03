@@ -549,7 +549,6 @@ import AppTabs from "@/components/common/AppTabs.vue";
 import config from "@/aws-exports";
 import usersService from "@/services/users";
 import AddUser from "@/components/iam/users/AddUser.vue";
-import { useReo } from "@/services/reodotdev_analytics";
 import {
   usePrebuiltDestinations,
   type SlackSetupMetadata,
@@ -689,8 +688,6 @@ const onUserCreated = async (created?: any) => {
     form.setFieldValue("emails", [...current, added]);
   }
 };
-
-const { track } = useReo();
 
 // Single form for custom, pipeline and prebuilt destinations (credentials are
 // `credentials.*` fields); saveDestination dispatches by type.
@@ -1482,10 +1479,6 @@ function saveCustomDestination(value: AddDestinationForm) {
   }
 
   if (isUpdatingDestination.value) {
-    track("Button Click", {
-      button: "Update Destination",
-      page: "Add Destination",
-    });
     return saveDestinationWrite
       .mutateAsync({ destination_name: value.name, data: payload })
       .then(() => {
@@ -1507,10 +1500,6 @@ function saveCustomDestination(value: AddDestinationForm) {
         });
       });
   } else {
-    track("Button Click", {
-      button: "Create Destination",
-      page: "Add Destination",
-    });
     return saveDestinationWrite
       .mutateAsync({ destination_name: value.name, data: payload })
       .then(() => {

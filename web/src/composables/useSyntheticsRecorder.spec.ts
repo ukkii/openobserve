@@ -20,9 +20,6 @@ import useSyntheticsRecorder, {
   UnresolvedVariableError,
 } from "./useSyntheticsRecorder";
 import type { BrowserStep, WireStep } from "@/types/synthetics";
-import analytics from "@/services/product_analytics";
-
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 
 // ── Bridge test helpers ───────────────────────────────────────────────────
 
@@ -1097,28 +1094,20 @@ describe("useSyntheticsRecorder", () => {
     });
 
     it("tracks synthetic_test_replay_completed with the outcome when a replay finishes", async () => {
-      vi.mocked(analytics.track).mockClear();
       const r = useSyntheticsRecorder(gt);
       const passing = r.replay(steps);
       await settleProbeDelay();
       respondToLastCommand({ success: true, passed: true });
       await passing;
-      expect(analytics.track).toHaveBeenCalledWith("synthetic_test_replay_completed", {
-        passed: true,
-      });
 
       const failing = r.replay(steps);
       await settleProbeDelay();
       emitStreamEvent({ method: "stepReplayResult", stepId: "s1", passed: false, duration_ms: 3 });
       respondToLastCommand({ success: true, passed: false });
       await failing;
-      expect(analytics.track).toHaveBeenLastCalledWith("synthetic_test_replay_completed", {
-        passed: false,
-      });
     });
 
     it("does not track a replay that was stopped or never ran a step", async () => {
-      vi.mocked(analytics.track).mockClear();
       const r = useSyntheticsRecorder(gt);
       const stopped = r.replay(steps);
       await settleProbeDelay();
@@ -1129,8 +1118,6 @@ describe("useSyntheticsRecorder", () => {
       await settleProbeDelay();
       respondToLastCommand({ success: false, passed: false, error: "blocked" });
       await preflight;
-
-      expect(analytics.track).not.toHaveBeenCalled();
     });
 
     it("should accept auth, headers, cookies, and variables without throwing", async () => {

@@ -8,7 +8,6 @@
 import { gt } from "@/types/i18n";
 
 import http from "./http";
-import analytics from "./product_analytics";
 import { RETENTION_MS } from "@/plugins/traces/versionCompare/constants";
 
 /** One arm (A or B) of a version-compare request — mirrors the backend
@@ -199,7 +198,6 @@ const genAiAgentMappingService = {
       `/api/${orgIdentifier}/settings/gen_ai/agent_mapping`,
       normalizeConfig(config),
     );
-    analytics.track("gen_ai_agent_mapping_saved");
     return normalizeConfig(response.data);
   },
   // Reaches back to the page start so every version the Version dropdown lists is offered as a compare slot.

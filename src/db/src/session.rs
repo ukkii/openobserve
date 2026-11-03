@@ -23,8 +23,12 @@ use o2_enterprise::enterprise::common::config::get_config as get_o2_config;
 
 // Key prefix for session events in coordinator
 pub const USER_SESSION_KEY: &str = "/user_sessions/";
+pub const PENDING_LOGIN_PREFIX: &str = "google_pending:";
 
 pub async fn get(session_id: &str) -> Result<String, anyhow::Error> {
+    if !is_user_session_id(session_id) {
+        return Err(anyhow::anyhow!("Session not found: {session_id}"));
+    }
     // Check cache first for performance
     if let Some(token) = USER_SESSIONS.get(session_id) {
         let token_value = token.to_string();
@@ -169,6 +173,33 @@ pub async fn delete(session_id: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+pub async fn take(session_id: &str) -> Result<String, anyhow::Error> {
+    let session = infra::table::sessions::take(session_id).await?;
+    USER_SESSIONS.remove(session_id);
+    USER_SESSIONS_EXPIRY.remove(session_id);
+    let Some(session) = session else {
+        return Err(anyhow::anyhow!("Session not found: {session_id}"));
+    };
+
+    let key = format!("{USER_SESSION_KEY}{session_id}");
+    if let Err(e) = delete_from_db_coordinator(&key, false, true, None).await {
+        log::error!("[SESSION] Failed to delete session from coordinator: {key} - {e}");
+    }
+    #[cfg(feature = "enterprise")]
+    if get_o2_config().super_cluster.enabled {
+        let _ = o2_enterprise::enterprise::super_cluster::queue::delete(&key, false, true, None)
+            .await
+            .inspect_err(|e| {
+                log::error!("[SESSION] delete to super cluster failed: {key} - {e}");
+            });
+    }
+
+    if is_expired(session.expires_at) {
+        return Err(anyhow::anyhow!("Session expired"));
+    }
+    Ok(session.access_token)
+}
+
 pub async fn watch() -> Result<(), anyhow::Error> {
     let key = USER_SESSION_KEY;
     let cluster_coordinator = infra::db::get_coordinator().await;
@@ -186,6 +217,9 @@ pub async fn watch() -> Result<(), anyhow::Error> {
         match ev {
             infra::db::Event::Put(ev) => {
                 let session_id = ev.key.strip_prefix(key).unwrap();
+                if !is_user_session_id(session_id) {
+                    continue;
+                }
                 match infra::table::sessions::get(session_id).await {
                     Ok(Some(session)) => {
                         if !session.access_token.is_empty() {
@@ -242,7 +276,7 @@ pub async fn cache() -> Result<(), anyhow::Error> {
     let sessions_list = infra::table::sessions::list().await?;
 
     for session in sessions_list {
-        if !session.access_token.is_empty() {
+        if is_user_session_id(&session.session_id) && !session.access_token.is_empty() {
             USER_SESSIONS.insert(session.session_id.clone(), session.access_token);
             // Cache expiry time
             USER_SESSIONS_EXPIRY.insert(session.session_id, session.expires_at);
@@ -301,9 +335,23 @@ fn is_expired(expires_at_micros: i64) -> bool {
     config::utils::time::now_micros() > expires_at_micros
 }
 
+fn is_user_session_id(session_id: &str) -> bool {
+    !session_id.starts_with(PENDING_LOGIN_PREFIX) && !session_id.starts_with("mcp:")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn meta_store() {
+        static ONCE: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
+        ONCE.get_or_init(|| async {
+            infra::db::create_table().await.unwrap();
+            infra::db_init().await.unwrap();
+            infra::table::migrate().await.unwrap();
+        })
+        .await;
+    }
 
     #[test]
     fn test_is_expired_uses_microseconds() {
@@ -343,5 +391,33 @@ mod tests {
             assert_eq!(key, format!("/user_sessions/{}", session_id));
             assert!(key.starts_with(USER_SESSION_KEY));
         }
+    }
+
+    #[tokio::test]
+    async fn pending_google_logins_never_enter_user_session_caches() {
+        meta_store().await;
+        let suffix = config::ider::uuid();
+        let pending = format!("{PENDING_LOGIN_PREFIX}{suffix}");
+        let user_session = format!("user-session-{suffix}");
+        let expires_at = config::utils::time::now_micros() + 60_000_000;
+        infra::table::sessions::set_with_expiry(&pending, "pending", expires_at)
+            .await
+            .unwrap();
+        infra::table::sessions::set_with_expiry(&user_session, "user", expires_at)
+            .await
+            .unwrap();
+
+        cache().await.unwrap();
+
+        assert!(!USER_SESSIONS.contains_key(&pending));
+        assert!(!USER_SESSIONS_EXPIRY.contains_key(&pending));
+        assert!(USER_SESSIONS.contains_key(&user_session));
+        assert!(USER_SESSIONS_EXPIRY.contains_key(&user_session));
+        assert!(get(&pending).await.is_err());
+
+        infra::table::sessions::delete(&pending).await.unwrap();
+        infra::table::sessions::delete(&user_session).await.unwrap();
+        USER_SESSIONS.remove(&user_session);
+        USER_SESSIONS_EXPIRY.remove(&user_session);
     }
 }

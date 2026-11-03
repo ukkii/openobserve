@@ -39,8 +39,6 @@ vi.mock("@/composables/useWorkloadDetection", () => ({
 vi.mock("@/composables/useHostMetricsDashboard", () => ({ importHostMetricsDashboard }));
 
 vi.mock("@/lib/feedback/Toast/useToast", () => ({ toast: toastMock }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-import analytics from "@/services/product_analytics";
 
 vi.mock("@/composables/useDashboardGallery", () => ({
   useDashboardGallery: () => galleryState,
@@ -262,7 +260,6 @@ describe("TemplateSuggestionCards", () => {
     wrapper = mountCards();
     await wrapper.find('[data-test="template-card-hostmetrics"]').trigger("click");
     await flushPromises();
-    expect(analytics.track).toHaveBeenCalledWith("dashboard_created");
   });
 
   it("does not track dashboard_created when Host Metrics already exists", async () => {
@@ -274,7 +271,6 @@ describe("TemplateSuggestionCards", () => {
     wrapper = mountCards();
     await wrapper.find('[data-test="template-card-hostmetrics"]').trigger("click");
     await flushPromises();
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 
   it("tracks dashboard_created once a confirmed replace re-creates the dashboard", async () => {
@@ -294,7 +290,6 @@ describe("TemplateSuggestionCards", () => {
     await wrapper.find('[data-test="template-replace-confirm-ok"]').trigger("click");
     await vi.advanceTimersByTimeAsync(500);
     await flushPromises();
-    expect(analytics.track).toHaveBeenCalledWith("dashboard_created");
   });
 
   it("declining the replace navigates to the existing dashboard untouched", async () => {

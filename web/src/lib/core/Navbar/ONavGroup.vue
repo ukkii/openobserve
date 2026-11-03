@@ -130,8 +130,7 @@ const visibleChildren = computed<SubnavChild[]>(() =>
       if (!c.gate) return [{ ...c, locked: false }];
       if (isFeatureKey(c.gate)) {
         const access = checkFeatureAccess(c.gate, buildFeatureGateContext(store.state.zoConfig));
-        if (!access.visible) return [];
-        if (!access.allowed) return [{ ...c, locked: true, lockedMessage: access.message }];
+        if (!access.allowed) return [];
         return isGateOpen(gateContext.value, c.gate) ? [{ ...c, locked: false }] : [];
       }
       return isGateOpen(gateContext.value, c.gate) ? [{ ...c, locked: false }] : [];

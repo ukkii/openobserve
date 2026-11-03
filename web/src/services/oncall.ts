@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import http from "./http";
-import analytics from "./product_analytics";
 import type {
   OwnershipRule,
   OwnershipStats,
@@ -88,7 +87,6 @@ const oncall = {
     http()
       .post<OnCallTeam>(`/api/${org_identifier}/oncall/teams`, data)
       .then((res) => {
-        analytics.track("oncall_team_created");
         return res;
       }),
 
@@ -166,7 +164,6 @@ const oncall = {
         data,
       )
       .then((res) => {
-        analytics.track("oncall_schedule_saved", { source: "preset", preset: data.preset });
         return res;
       }),
 
@@ -237,7 +234,6 @@ const oncall = {
         data,
       )
       .then((res) => {
-        analytics.track("oncall_escalation_policy_saved");
         return res;
       }),
 
@@ -335,7 +331,6 @@ const oncall = {
     http()
       .post<OwnershipRule>(`/api/${org_identifier}/oncall/ownership`, data)
       .then((res) => {
-        analytics.track("oncall_ownership_rule_created");
         return res;
       }),
 
@@ -974,9 +969,6 @@ const oncall = {
         priority === undefined ? {} : { priority },
       )
       .then((res) => {
-        analytics.track("oncall_test_page_sent", {
-          reached_anyone: res.data?.reached_anyone === true,
-        });
         return res;
       }),
 

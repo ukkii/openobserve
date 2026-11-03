@@ -212,7 +212,6 @@ import AddFolder from "./AddFolder.vue";
 import useNotifications from "@/composables/useNotifications";
 import { FAVORITES_FOLDER_ID } from "@/composables/useFavoriteDashboards";
 import { useFolderIcons } from "@/composables/useFolderIcons";
-import { useReo } from "@/services/reodotdev_analytics";
 
 export default defineComponent({
   name: "FolderList",
@@ -287,7 +286,6 @@ export default defineComponent({
       return name || selectedFolderDelete.value || undefined;
     });
     const searchQuery = ref("");
-    const { track } = useReo();
     const { iconFor } = useFolderIcons();
 
     const router = useRouter();
@@ -315,10 +313,6 @@ export default defineComponent({
     const addFolder = () => {
       isFolderEditMode.value = false;
       showAddFolderDialog.value = true;
-      track("Button Click", {
-        button: "Add Folder",
-        page: "Folders",
-      });
     };
 
     const updateFolderList = async (folders: any) => {

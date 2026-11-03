@@ -13,13 +13,25 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Schema, Set,
+    TransactionTrait, sea_query::OnConflict,
+};
 
 use super::entity::sessions::{ActiveModel, Column, Entity, Model};
 use crate::{
     db::{get_orm_client_ro, get_orm_client_rw},
     errors,
 };
+
+pub async fn create_table() -> Result<(), errors::Error> {
+    let client = get_orm_client_rw().await;
+    let backend = client.get_database_backend();
+    let mut statement = Schema::new(backend).create_table_from_entity(Entity);
+    statement.if_not_exists();
+    client.execute(backend.build(&statement)).await?;
+    Ok(())
+}
 
 /// Gets a session by session_id
 pub async fn get(session_id: &str) -> Result<Option<Model>, errors::Error> {
@@ -29,6 +41,13 @@ pub async fn get(session_id: &str) -> Result<Option<Model>, errors::Error> {
         .one(client)
         .await?;
     Ok(session)
+}
+
+pub async fn get_primary(session_id: &str) -> Result<Option<Model>, errors::Error> {
+    Ok(Entity::find()
+        .filter(Column::SessionId.eq(session_id))
+        .one(get_orm_client_rw().await)
+        .await?)
 }
 
 /// Creates or updates a session with expiration
@@ -81,6 +100,28 @@ pub async fn delete(session_id: &str) -> Result<(), errors::Error> {
         .exec(client)
         .await?;
     Ok(())
+}
+
+/// Removes and returns a session in one transaction.
+pub async fn take(session_id: &str) -> Result<Option<Model>, errors::Error> {
+    let client = get_orm_client_rw().await;
+    let txn = client.begin().await?;
+    let mut session = Entity::find()
+        .filter(Column::SessionId.eq(session_id))
+        .lock_exclusive()
+        .one(&txn)
+        .await?;
+    if session.is_some() {
+        let deleted = Entity::delete_many()
+            .filter(Column::SessionId.eq(session_id))
+            .exec(&txn)
+            .await?;
+        if deleted.rows_affected != 1 {
+            session = None;
+        }
+    }
+    txn.commit().await?;
+    Ok(session)
 }
 
 /// Lists all sessions

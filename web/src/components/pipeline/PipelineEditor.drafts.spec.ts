@@ -110,7 +110,6 @@ vi.mock("@/composables/usePipelines", () => ({
 vi.mock("@/composables/useStreams", () => ({
   default: () => ({ getStreams: vi.fn(() => Promise.resolve({ list: [] })) }),
 }));
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 vi.mock("@/composables/contextProviders", () => ({
   contextRegistry: { register: vi.fn(), unregister: vi.fn(), setActive: vi.fn() },
   createPipelinesContextProvider: vi.fn(() => ({})),

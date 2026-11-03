@@ -38,12 +38,6 @@ vi.mock("@/services/cipher_keys", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
 vi.mock("@/utils/zincutils", async (importOriginal) => ({
   ...(await importOriginal<any>()),
   convertToTitleCase: vi.fn((str) => str),

@@ -63,12 +63,6 @@ vi.mock("../../services/stream", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
 vi.mock("@/utils/zincutils", () => ({
   getImageURL: vi.fn((url: string) => url),
   verifyOrganizationStatus: vi.fn(),

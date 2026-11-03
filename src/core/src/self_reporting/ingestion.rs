@@ -19,7 +19,6 @@ use config::meta::self_reporting::usage::{DATA_RETENTION_USAGE_STREAM, DataReten
 use config::{
     META_ORG_ID,
     cluster::LOCAL_NODE,
-    get_config,
     meta::{
         search::SearchEventType,
         self_reporting::{
@@ -33,7 +32,6 @@ use config::{
 use hashbrown::{HashMap, hash_map::Entry};
 use ingestion_common::{self as ingestion, IngestUser, SystemJobType};
 use proto::cluster_rpc;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 
 pub(super) async fn ingest_usages(mut curr_usages: Vec<UsageData>) {
     if curr_usages.is_empty() {
@@ -106,163 +104,77 @@ pub(super) async fn ingest_usages(mut curr_usages: Vec<UsageData>) {
         report_data.push(usage_data);
     }
 
-    let cfg = get_config();
-    #[cfg(not(feature = "enterprise"))]
-    let usage_reporting_mode = &cfg.common.usage_reporting_mode;
-    #[cfg(feature = "enterprise")]
-    let usage_reporting_mode = {
-        if cfg.common.usage_reporting_mode == "local" {
-            "local"
-        } else {
-            "both"
-        }
-    };
-
     // Push all the search events
     report_data.append(&mut search_events);
-    if usage_reporting_mode != "local"
-        && !cfg.common.usage_reporting_url.is_empty()
-        && !cfg.common.usage_reporting_creds.is_empty()
-    {
-        let url = url::Url::parse(&cfg.common.usage_reporting_url).unwrap();
-        let creds = if cfg.common.usage_reporting_creds.starts_with("Basic") {
-            cfg.common.usage_reporting_creds.to_string()
-        } else {
-            format!("Basic {}", cfg.common.usage_reporting_creds)
-        };
-        match reqwest::Client::new()
-            .post(url)
-            .header(CONTENT_TYPE, "application/json")
-            .header(AUTHORIZATION, creds)
-            .json(&report_data)
-            .send()
-            .await
-        {
-            Ok(resp) => {
-                let resp_status = resp.status();
-                if !resp_status.is_success() {
-                    log::error!(
-                        "[SELF-REPORTING] Error in ingesting usage data to external URL: {}",
-                        resp.text()
-                            .await
-                            .unwrap_or_else(|_| resp_status.to_string())
-                    );
-                    if usage_reporting_mode != "both" {
-                        // on error in ingesting usage data, push back the data
-                        let curr_usages = curr_usages.clone();
-                        for usage_data in curr_usages {
-                            if let Err(e) = usage_reporting::try_enqueue(ReportingData::Usage(
-                                Box::new(usage_data),
-                            )) {
-                                log::error!(
-                                    "[SELF-REPORTING] Error in pushing back un-ingested Usage data to UsageQueuer: {e}"
-                                );
-                            }
-                        }
-                    }
-                }
-            }
+    let report_data: Vec<json::Value> = report_data
+        .into_iter()
+        .filter_map(|usage| match json::to_value(&usage) {
+            Ok(v) => Some(v),
             Err(e) => {
-                log::error!("[SELF-REPORTING] Error in ingesting usage data to external URL {e:?}");
-                if usage_reporting_mode != "both" {
-                    // on error in ingesting usage data, push back the data
-                    let curr_usages = curr_usages.clone();
-                    for usage_data in curr_usages {
-                        if let Err(e) =
-                            usage_reporting::try_enqueue(ReportingData::Usage(Box::new(usage_data)))
-                        {
-                            log::error!(
-                                "[SELF-REPORTING] Error in pushing back un-ingested Usage data to UsageQueuer: {e}"
-                            );
-                        }
-                    }
+                log::error!("[SELF-REPORTING] Failed to serialize usage data: {e}");
+                None
+            }
+        })
+        .collect();
+
+    // report usage data to _meta org
+    let usage_stream = StreamParams::new(META_ORG_ID, USAGE_STREAM, StreamType::Logs);
+    if let Err(e) = ingest_reporting_data(report_data.clone(), usage_stream).await {
+        log::error!("[SELF-REPORTING] Error in ingesting usage data to internal ingestion: {e}");
+        tokio::spawn(async move {
+            for usage_data in curr_usages {
+                if let Err(e) =
+                    usage_reporting::enqueue(ReportingData::Usage(Box::new(usage_data))).await
+                {
+                    log::error!(
+                        "[SELF-REPORTING] Error in pushing back un-ingested Usage data to UsageQueuer: {e}"
+                    );
                 }
             }
+        });
+    }
+
+    // Distribute usage to individual orgs if usage_stream_enabled is set
+    let mut per_org_map: HashMap<String, Vec<json::Value>> = HashMap::new();
+
+    for usage in &report_data {
+        if let Some(org_id) = usage.get("org_id").and_then(|v| v.as_str()) {
+            // Skip meta org (already handled above)
+            if org_id.is_empty() || org_id == META_ORG_ID {
+                continue;
+            }
+            per_org_map
+                .entry(org_id.to_string())
+                .or_default()
+                .push(usage.clone());
         }
     }
 
-    if usage_reporting_mode != "remote" {
-        let report_data: Vec<json::Value> = report_data
-            .into_iter()
-            .filter_map(|usage| match json::to_value(&usage) {
-                Ok(v) => Some(v),
-                Err(e) => {
-                    log::error!("[SELF-REPORTING] Failed to serialize usage data: {e}");
-                    None
-                }
-            })
-            .collect();
+    for (org, values) in per_org_map {
+        // report to super org as well
+        #[cfg(feature = "cloud")]
+        if let Err(e) = send_to_super_org(&org, &values).await {
+            log::error!("error in reporting usage of {org} to super org : {e}");
+        }
+        // do not skip self-reporting even if super org reporting fails
 
-        // report usage data to _meta org
-        let usage_stream = StreamParams::new(META_ORG_ID, USAGE_STREAM, StreamType::Logs);
-        if let Err(e) = ingest_reporting_data(report_data.clone(), usage_stream).await {
-            log::error!(
-                "[SELF-REPORTING] Error in ingesting usage data to internal ingestion: {e}"
-            );
-            if usage_reporting_mode != "both" {
-                // on error in ingesting usage data, push back the data
-                tokio::spawn(async move {
-                    for usage_data in curr_usages {
-                        if let Err(e) =
-                            usage_reporting::enqueue(ReportingData::Usage(Box::new(usage_data)))
-                                .await
-                        {
-                            log::error!(
-                                "[SELF-REPORTING] Error in pushing back un-ingested Usage data to UsageQueuer: {e}"
-                            );
-                        }
-                    }
-                });
+        // Check if org has usage stream enabled
+        match crate::db::organization::read_org_setting(&org, |s| s.usage_stream_enabled).await {
+            Ok(true) => {}
+            Ok(false) => continue, // self-report not enabled, so skip
+            Err(e) => {
+                log::error!("[SELF-REPORTING] Could not check usage_stream_enabled for {org}: {e}");
+                continue;
             }
         }
 
-        // Distribute usage to individual orgs if usage_stream_enabled is set
-        let mut per_org_map: HashMap<String, Vec<json::Value>> = HashMap::new();
-
-        for usage in &report_data {
-            if let Some(org_id) = usage.get("org_id").and_then(|v| v.as_str()) {
-                // Skip meta org (already handled above)
-                if org_id.is_empty() || org_id == META_ORG_ID {
-                    continue;
-                }
-                per_org_map
-                    .entry(org_id.to_string())
-                    .or_default()
-                    .push(usage.clone());
-            }
+        if let Err(e) = super::usage_schema::ensure_usage_stream_initialized(&org).await {
+            log::warn!("[SELF-REPORTING] Failed to ensure usage stream initialized for {org}: {e}");
         }
 
-        for (org, values) in per_org_map {
-            // report to super org as well
-            #[cfg(feature = "cloud")]
-            if let Err(e) = send_to_super_org(&org, &values).await {
-                log::error!("error in reporting usage of {org} to super org : {e}");
-            }
-            // do not skip self-reporting even if super org reporting fails
-
-            // Check if org has usage stream enabled
-            match crate::db::organization::read_org_setting(&org, |s| s.usage_stream_enabled).await
-            {
-                Ok(true) => {}
-                Ok(false) => continue, // self-report not enabled, so skip
-                Err(e) => {
-                    log::error!(
-                        "[SELF-REPORTING] Could not check usage_stream_enabled for {org}: {e}"
-                    );
-                    continue;
-                }
-            }
-
-            if let Err(e) = super::usage_schema::ensure_usage_stream_initialized(&org).await {
-                log::warn!(
-                    "[SELF-REPORTING] Failed to ensure usage stream initialized for {org}: {e}"
-                );
-            }
-
-            let org_usage_stream = StreamParams::new(&org, USAGE_STREAM, StreamType::Logs);
-            if let Err(e) = ingest_reporting_data(values, org_usage_stream).await {
-                log::error!("[SELF-REPORTING] Error ingesting usage data for org {org}: {e}");
-            }
+        let org_usage_stream = StreamParams::new(&org, USAGE_STREAM, StreamType::Logs);
+        if let Err(e) = ingest_reporting_data(values, org_usage_stream).await {
+            log::error!("[SELF-REPORTING] Error ingesting usage data for org {org}: {e}");
         }
     }
 }

@@ -35,9 +35,6 @@ const modelPricing = {
     const params = search ? `?search=${encodeURIComponent(search)}` : "";
     return http().get(`/api/${org_identifier}/llm/models/built-in${params}`);
   },
-  refreshBuiltIn: (org_identifier: string) => {
-    return http().post(`/api/${org_identifier}/llm/models/refresh-built-in`, {});
-  },
   /** Test which rule prices `model_name`. With `match_pattern`, the response's
    *  `captured_models` lists the known models that pattern would price if saved;
    *  `rule_id` leaves the rule being edited out of that preview. */

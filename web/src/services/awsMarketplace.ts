@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 export interface LinkSubscriptionRequest {
   token: string;
@@ -48,7 +47,6 @@ const awsMarketplace = {
         token,
       })
       .then((res) => {
-        analytics.track("marketplace_subscription_linked", { marketplace: "aws" });
         return res;
       });
   },

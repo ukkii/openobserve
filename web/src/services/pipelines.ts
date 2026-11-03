@@ -1,5 +1,4 @@
 import http from "./http";
-import analytics from "./product_analytics";
 
 const pipelines = {
   getPipelines: (org_identifier: string) => {
@@ -26,7 +25,6 @@ const pipelines = {
     return http()
       .put(url)
       .then((res) => {
-        analytics.track(enable ? "pipeline_resumed" : "pipeline_paused", { count: 1 });
         return res;
       });
   },
@@ -35,8 +33,6 @@ const pipelines = {
     return http()
       .post(url, data)
       .then((res) => {
-        const count = res.data?.successful?.length ?? 0;
-        if (count > 0) analytics.track(enable ? "pipeline_resumed" : "pipeline_paused", { count });
         return res;
       });
   },
@@ -46,7 +42,6 @@ const pipelines = {
     return http()
       .delete(url)
       .then((res) => {
-        analytics.track("pipeline_deleted", { count: 1 });
         return res;
       });
   },
@@ -56,8 +51,6 @@ const pipelines = {
     return http()
       .delete(url, { data })
       .then((res) => {
-        const count = res.data?.successful?.length ?? 0;
-        if (count > 0) analytics.track("pipeline_deleted", { count });
         return res;
       });
   },
@@ -67,7 +60,6 @@ const pipelines = {
     return http({})
       .post(url, data)
       .then((res) => {
-        analytics.track("pipeline_created");
         return res;
       });
   },
@@ -77,7 +69,6 @@ const pipelines = {
     return http()
       .put(url, data)
       .then((res) => {
-        analytics.track("pipeline_updated");
         return res;
       });
   },

@@ -819,7 +819,6 @@ import {
 } from "@/services/stream.queries";
 import { useMutation } from "@tanstack/vue-query";
 import { useOrgId } from "@/composables/query";
-import analytics from "../../services/product_analytics";
 import {
   formatSizeFromMB,
   getImageURL,
@@ -1696,8 +1695,6 @@ export default defineComponent({
           settings: modifiedSettings,
         })
         .then(async () => {
-          if (modifiedSettings.cross_links)
-            analytics.track("cross_link_saved", { scope: "stream" });
           if (
             store.state.logs?.logs?.data?.stream?.selectedStream?.includes(indexData.value.name)
           ) {
@@ -1717,13 +1714,6 @@ export default defineComponent({
               });
             },
           );
-
-          analytics.track("Button Click", {
-            button: "Update Settings",
-            user_org: store.state.selectedOrganization.identifier,
-            stream_name: indexData.value.name,
-            page: "Schema Details",
-          });
         })
         .catch((err: any) => {
           loadingState.value = false;

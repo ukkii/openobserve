@@ -62,9 +62,10 @@ const props = defineProps<{
 const { t } = useI18nTyped();
 const store = useStore();
 const router = useRouter();
-const { generate, generating, error: genError, credential } = useMcpCredential();
+const { generate, revoke, generating, error: genError, credential } = useMcpCredential();
 
 const endpoint = computed(() => `${props.subs.url}/api/${props.subs.org}/mcp`);
+const community = config.isEnterprise !== "true" && config.isCloud !== "true";
 
 // OAuth discovery 404s on OSS builds and whenever SSO (Dex) is off, so it needs both.
 const oauthAvailable = computed(
@@ -86,8 +87,10 @@ const authSettled = computed(() => authMode.value === "oauth" || !!credential.va
 
 // Not [BASIC_PASSCODE]: CopyContent expands it to the user's real credential, which
 // then renders in cleartext because maskText is a no-op.
-const TOKEN_PLACEHOLDER = "Basic <base64 of service-account-email:token>";
-const MASKED_AUTH = "Basic ••••••••••••••••";
+const TOKEN_PLACEHOLDER = community
+  ? "Bearer <MCP token>"
+  : "Basic <base64 of service-account-email:token>";
+const MASKED_AUTH = community ? "Bearer ••••••••••••••••" : "Basic ••••••••••••••••";
 
 const SKILLS_REPO_URL = "https://www.npmjs.com/package/@openobserve/skills";
 // No -a flag: the CLI then asks which agents to install to, so one command serves every client.
@@ -97,17 +100,15 @@ const SKILLS_INSTALL_CMD = "npx skills add openobserve/skills --skill openobserv
 // passes null so build() omits the header entirely.
 const tokenAuthValue = computed(() =>
   credential.value
-    ? `Basic ${b64EncodeStandard(`${credential.value.email}:${credential.value.token}`)}`
+    ? credential.value.scheme === "Bearer"
+      ? `Bearer ${credential.value.token}`
+      : `Basic ${b64EncodeStandard(`${credential.value.email}:${credential.value.token}`)}`
     : TOKEN_PLACEHOLDER,
 );
 const authValue = computed(() => (authMode.value === "oauth" ? null : tokenAuthValue.value));
 
 // The `Basic <base64>` line for the generated credential's reveal + download.
-const credentialHeader = computed(() =>
-  credential.value
-    ? `Basic ${b64EncodeStandard(`${credential.value.email}:${credential.value.token}`)}`
-    : "",
-);
+const credentialHeader = computed(() => (credential.value ? tokenAuthValue.value : ""));
 
 interface ClientDef {
   id: string;
@@ -503,7 +504,11 @@ const openSkillsRepo = () => {
                   {{ t("ingestion.mcp.credential.quickStartTitle") }}
                 </OText>
                 <OText variant="meta" as="p" class="leading-snug">
-                  {{ t("ingestion.mcp.credential.quickStartBody") }}
+                  {{
+                    community
+                      ? t("ingestion.mcp.credential.communityStart")
+                      : t("ingestion.mcp.credential.quickStartBody")
+                  }}
                 </OText>
               </div>
               <template #actions>
@@ -532,13 +537,18 @@ const openSkillsRepo = () => {
               variant="info"
               dense
               icon="info-outline"
-              :content="t('ingestion.mcp.securityBody')"
+              :content="
+                community
+                  ? t('ingestion.mcp.credential.communitySecurity')
+                  : t('ingestion.mcp.securityBody')
+              "
               data-test="ai-integrations-mcp-security"
             />
           </template>
 
           <!-- After generation: show-once reveal + manage -->
           <template v-else>
+            <OBanner v-if="genError" variant="error" :content="raw(genError)" />
             <OBanner variant="success" icon="check-circle">
               <div class="flex flex-col gap-1">
                 <OText variant="body-strong">{{ t("ingestion.mcp.credential.created") }}</OText>
@@ -572,14 +582,19 @@ const openSkillsRepo = () => {
                 size="sm-action"
                 icon-left="open-in-new"
                 data-test="ai-integrations-mcp-manage-btn"
-                @click="goToServiceAccounts"
+                :loading="generating"
+                @click="credential.scheme === 'Bearer' ? revoke() : goToServiceAccounts()"
               >
-                {{ t("ingestion.mcp.credential.manage") }}
+                {{
+                  credential.scheme === "Bearer"
+                    ? t("ingestion.mcp.credential.revoke")
+                    : t("ingestion.mcp.credential.manage")
+                }}
               </OButton>
             </div>
 
             <OBanner
-              v-if="credential.scope === 'unscoped'"
+              v-if="credential.scheme !== 'Bearer' && credential.scope === 'unscoped'"
               variant="warning"
               dense
               icon="warning"
@@ -602,7 +617,11 @@ const openSkillsRepo = () => {
               class="leading-snug"
               data-test="ai-integrations-mcp-readonly-note"
             >
-              {{ t("ingestion.mcp.credential.readonlyNote", { role: credential.role }) }}
+              {{
+                credential.scheme === "Bearer"
+                  ? t("ingestion.mcp.credential.communityScope")
+                  : t("ingestion.mcp.credential.readonlyNote", { role: credential.role })
+              }}
             </OText>
           </template>
         </div>

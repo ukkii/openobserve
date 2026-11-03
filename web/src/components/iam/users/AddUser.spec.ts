@@ -47,10 +47,6 @@ vi.mock("@/services/users", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({ track: vi.fn() }),
-}));
-
 const confirmMock = vi.fn();
 vi.mock("@/composables/useConfirmDialog", () => ({
   useConfirmDialog: () => ({ confirm: confirmMock }),

@@ -29,10 +29,7 @@ vi.mock("@/aws-exports", () => ({
   default: mockConfig,
 }));
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-
 import CommunitySlackInvite from "./CommunitySlackInvite.vue";
-import analytics from "@/services/product_analytics";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const USER_EMAIL = "example@gmail.com"; // matches store.ts userInfo.email
@@ -297,11 +294,6 @@ describe("CommunitySlackInvite", () => {
       setPendingDay2(25);
 
       wrapper = buildWrapper();
-
-      expect(analytics.track).toHaveBeenCalledWith(
-        "community_slack_prompt_shown",
-        expect.objectContaining({ source: "standalone_day2" }),
-      );
     });
   });
 
@@ -343,11 +335,6 @@ describe("CommunitySlackInvite", () => {
       const joinBtn = wrapper.find('[data-test="community-slack-invite-join-btn"]');
 
       await joinBtn.trigger("click");
-
-      expect(analytics.track).toHaveBeenCalledWith(
-        "community_slack_prompt_joined",
-        expect.objectContaining({ source: "standalone_day2" }),
-      );
     });
   });
 

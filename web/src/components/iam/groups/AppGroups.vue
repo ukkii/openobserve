@@ -250,7 +250,6 @@ import { getGroup, updateGroup } from "@/services/iam";
 import users from "@/services/users";
 import usePermissions from "@/composables/iam/usePermissions";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
-import { useReo } from "@/services/reodotdev_analytics";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
 import OSearchInput from "@/lib/forms/SearchInput/OSearchInput.vue";
 
@@ -262,8 +261,6 @@ import { useListViewState } from "@/composables/useListViewState";
 const showAddGroup = ref(false);
 
 const { t } = useI18nTyped();
-
-const { track } = useReo();
 
 const rows: any = ref([]);
 
@@ -428,10 +425,6 @@ const updateTable = () => {
 };
 
 const addGroup = () => {
-  track("Button Click", {
-    button: "Add Group",
-    page: "Groups",
-  });
   showAddGroup.value = true;
 };
 

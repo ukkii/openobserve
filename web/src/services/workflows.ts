@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 const workflows = {
   // List the org's workflows in one folder. Omitting `folder` lets the backend
@@ -60,7 +59,6 @@ const workflows = {
     return http()
       .post(`/api/${org_identifier}/workflows${qs ? `?${qs}` : ""}`, data)
       .then((res) => {
-        analytics.track("workflow_created", { draft: !!draft });
         return res;
       });
   },
@@ -96,7 +94,6 @@ const workflows = {
     return http()
       .delete(url)
       .then((res) => {
-        analytics.track("workflow_deleted", { draft: !!draft, count: 1 });
         return res;
       });
   },
@@ -123,7 +120,6 @@ const workflows = {
     return http()
       .post(`/api/${org_identifier}/workflows/promote/${id}?${params.toString()}`)
       .then((res) => {
-        analytics.track("workflow_published");
         return res;
       });
   },
@@ -168,7 +164,6 @@ const workflows = {
     return http()
       .post(url, { workflow, inputs, from_node, suppress_destinations })
       .then((res) => {
-        analytics.track("workflow_test_run_completed", { from_node: !!from_node });
         return res;
       });
   },
@@ -229,7 +224,6 @@ const workflows = {
     return http()
       .post(url, { run_id, from_node })
       .then((res) => {
-        analytics.track("workflow_run_retried", { from_node: !!from_node });
         return res;
       });
   },

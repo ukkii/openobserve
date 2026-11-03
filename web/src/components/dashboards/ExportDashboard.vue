@@ -33,7 +33,6 @@ import { useI18nTyped } from "@/types/i18n";
 import { getDashboard } from "../../utils/commons.ts";
 import { useStore } from "vuex";
 import { useRoute } from "vue-router";
-import analytics from "@/services/product_analytics";
 
 export default defineComponent({
   name: "ExportDashboard",
@@ -56,7 +55,6 @@ export default defineComponent({
       const fileName = dashboard.title || "dashboard";
       htmlA.setAttribute("download", fileName + ".dashboard.json");
       htmlA.click();
-      analytics.track("dashboard_exported", { format: "json" });
     };
 
     return {

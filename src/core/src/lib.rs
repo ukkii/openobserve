@@ -49,6 +49,8 @@ pub mod kv;
 #[cfg(feature = "enterprise")]
 pub mod llm_evaluations;
 pub mod logs;
+#[cfg(not(feature = "enterprise"))]
+pub mod mcp_credentials;
 pub mod metrics;
 #[cfg(feature = "enterprise")]
 pub mod ofga;

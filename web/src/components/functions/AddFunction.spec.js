@@ -16,23 +16,6 @@ vi.mock("@/services/jstransform", async (importOriginal) => {
   });
 });
 
-// Mock product analytics
-vi.mock("@/services/product_analytics", () => ({
-  default: {
-    track: vi.fn(),
-  },
-}));
-
-// Mock reodotdev analytics
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({
-    track: vi.fn(),
-    reoInit: vi.fn(),
-    identify: vi.fn(),
-    isLoaded: false,
-  }),
-}));
-
 // Mock toast
 vi.mock("@/lib/feedback/Toast/useToast", () => ({
   toast: vi.fn(() => vi.fn()),

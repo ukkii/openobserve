@@ -45,12 +45,6 @@ vi.mock("@/services/users", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({
-    track: vi.fn(),
-  }),
-}));
-
 // Create mock states that will be returned by the composable
 const mockGroupsState = { groups: [] };
 const mockPermissionsState = { permissions: [], selectedResources: {} };

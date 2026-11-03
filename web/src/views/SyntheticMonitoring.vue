@@ -552,7 +552,6 @@ import { raw, useI18nTyped, type I18nText } from "@/types/i18n";
 import OStatStrip from "@/lib/data/StatStrip/OStatStrip.vue";
 import type { StatItem } from "@/lib/data/StatStrip/OStatStrip.types";
 import syntheticsService from "@/services/synthetics";
-import analytics from "@/services/product_analytics";
 import { locationDisplayLabel } from "@/utils/synthetics/format";
 import {
   syntheticsCreateRoute,
@@ -1035,8 +1034,6 @@ const bulkDeleteMonitors = async () => {
       { ids: selectedMonitorIds.value },
       searchAcrossFolders.value ? undefined : activeFolderId.value,
     );
-    // The bulk endpoint deletes all ids or fails, so a resolved call removed every selected test.
-    analytics.track("synthetic_test_deleted", { count: selectedMonitorIds.value.length });
     dropCheckDrafts(selectedMonitorIds.value.map(String));
     selectedMonitorIds.value = [];
     dismiss();
@@ -1558,9 +1555,7 @@ async function bulkTriggerMonitors() {
   );
   dismiss();
   const failed = results.filter((r) => r.status === "rejected").length;
-  if (toTrigger.length - failed > 0) {
-    analytics.track("synthetic_test_run_triggered", { count: toTrigger.length - failed });
-  }
+
   if (failed > 0) {
     toast({
       variant: "warning",
@@ -1793,7 +1788,6 @@ async function runMonitor(m: any) {
   });
   try {
     await syntheticsService.run(org, id, {}, m.folderId);
-    analytics.track("synthetic_test_run_triggered", { count: 1 });
     dismiss();
     toast({ variant: "success", message: t("synthetics.toast.triggerSuccessSingle", { name }) });
   } catch (err: any) {
@@ -1825,7 +1819,6 @@ async function deleteMonitor(m: any) {
   });
   try {
     await syntheticsService.delete(org, String(m.id), activeFolderId.value);
-    analytics.track("synthetic_test_deleted", { count: 1 });
     dropCheckDrafts([String(m.id)]);
     // Every cached folder, not just the one on screen: a cross-folder view deletes rows another folder's entry still holds.
     queryClient.setQueriesData({ queryKey: syntheticsKeys.monitorsAll(org) }, (old: any) => {

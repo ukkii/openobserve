@@ -70,10 +70,6 @@ vi.mock("@/services/dashboards", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({ track: vi.fn() }),
-}));
-
 vi.mock("@/utils/zincutils", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {

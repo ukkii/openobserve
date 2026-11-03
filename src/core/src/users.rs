@@ -82,6 +82,14 @@ fn custom_roles_differ(requested: &[String], current: &[String]) -> bool {
     requested != current.iter().collect()
 }
 
+fn role_request_changes(
+    current: UserRole,
+    requested: &common::meta::user::UserRoleRequest,
+) -> bool {
+    let requested = UserOrgRole::from(requested);
+    requested.base_role != current || requested.custom_role.is_some()
+}
+
 fn redact_token(token: &str) -> String {
     if token.is_empty() {
         return String::new();
@@ -104,6 +112,12 @@ pub async fn post_user(
         return Ok(MetaHttpResponse::bad_request("Invalid email"));
     }
     usr_req.email = usr_req.email.to_lowercase();
+    #[cfg(not(feature = "enterprise"))]
+    if !crate::auth::is_community_role_assignable(&usr_req.role.base_role) {
+        return Ok(MetaHttpResponse::bad_request(
+            "Role cannot be assigned in community edition",
+        ));
+    }
     if let Some(_custom_roles) = &usr_req.role.custom_role {
         #[cfg(not(feature = "enterprise"))]
         return Ok(MetaHttpResponse::bad_request("Custom roles not allowed"));
@@ -298,12 +312,8 @@ pub async fn update_user(
 
     #[cfg(not(feature = "enterprise"))]
     if is_email_root {
-        user.role = Some(common::meta::user::UserRoleRequest {
-            role: UserRole::Root.to_string(),
-            custom: None,
-        });
+        user.role = None;
     }
-    user.role = user.role.clone();
 
     // Only root user can update root user
     if is_email_root && !update_mode.is_self_update() && !update_mode.is_cli_update() {
@@ -321,6 +331,19 @@ pub async fn update_user(
             "Root user role cannot be updated",
         ));
     }
+
+    #[cfg(not(feature = "enterprise"))]
+    let community_role = match user.role.as_ref() {
+        Some(role) => match UserOrgRole::from_community(role) {
+            Some(role) => Some(role),
+            None => {
+                return Ok(MetaHttpResponse::bad_request(
+                    "Role cannot be assigned in community edition",
+                ));
+            }
+        },
+        None => None,
+    };
 
     let existing_user = if is_email_root {
         db::user::get(None, email).await
@@ -349,6 +372,11 @@ pub async fn update_user(
     let Some(local_user) = existing_user else {
         return Ok(MetaHttpResponse::not_found("User not found"));
     };
+
+    let role_changes = user
+        .role
+        .as_ref()
+        .is_some_and(|role| role_request_changes(local_user.role.clone(), role));
 
     #[cfg(not(feature = "cloud"))]
     if local_user.is_external {
@@ -400,6 +428,13 @@ pub async fn update_user(
     #[cfg(not(feature = "enterprise"))]
     let remove_lockout = false;
     if remove_lockout && !allow_password_update {
+        return Ok(MetaHttpResponse::unauthorized("Not Allowed"));
+    }
+    if !update_mode.is_self_update()
+        && !update_mode.is_cli_update()
+        && role_changes
+        && !allow_password_update
+    {
         return Ok(MetaHttpResponse::unauthorized("Not Allowed"));
     }
 
@@ -485,18 +520,26 @@ pub async fn update_user(
         new_user.last_name = last_name;
         is_updated = true;
     }
-    if let Some(role) = user.role
+    if user.role.is_some()
         && (!local_user.is_external || is_cloud)
         && (!update_mode.is_self_update()
             || (local_user.role.eq(&UserRole::Admin)
-                            // Editor can update other's roles, but viewer can update only self
-                            || local_user.role.eq(&UserRole::Editor)
-                            || local_user.role.eq(&UserRole::Viewer)
-                            || local_user.role.eq(&UserRole::Root)))
-    // if the User Role is Root, we do not change the Role
-    // Admins Role can still be mutable.
+                || local_user.role.eq(&UserRole::Editor)
+                || local_user.role.eq(&UserRole::Viewer)
+                || local_user.role.eq(&UserRole::Root)))
     {
-        let new_org_role = UserOrgRole::from(&role);
+        #[cfg(feature = "enterprise")]
+        let Some(role) = user.role.as_ref() else {
+            return Ok(MetaHttpResponse::bad_request("No role specified"));
+        };
+        #[cfg(feature = "enterprise")]
+        let new_org_role = UserOrgRole::from(role);
+        #[cfg(not(feature = "enterprise"))]
+        let Some(new_org_role) = community_role else {
+            return Ok(MetaHttpResponse::bad_request(
+                "Role cannot be assigned in community edition",
+            ));
+        };
         old_role = Some(new_user.role);
         new_user.role = new_org_role.base_role;
         new_role = Some(new_user.role.clone());
@@ -735,6 +778,12 @@ pub async fn add_user_to_org(
 ) -> Result<Response, Error> {
     if !is_valid_email(email) {
         return Ok(MetaHttpResponse::bad_request("Invalid email"));
+    }
+    #[cfg(not(feature = "enterprise"))]
+    if !crate::auth::is_community_role_assignable(&role.base_role) {
+        return Ok(MetaHttpResponse::bad_request(
+            "Role cannot be assigned in community edition",
+        ));
     }
     let email = email.trim();
     let existing_user = db::user::get_user_record(email).await;
@@ -1766,6 +1815,48 @@ mod tests {
         assert!(resp.is_ok());
     }
 
+    #[cfg(not(feature = "enterprise"))]
+    #[tokio::test]
+    async fn community_user_creation_persists_each_assignable_role() {
+        let _guard = set_up().await;
+        for role in [
+            UserRole::Admin,
+            UserRole::Editor,
+            UserRole::Viewer,
+            UserRole::User,
+        ] {
+            let email = format!("{}-create@example.com", role);
+            let response = post_user(
+                "dummy",
+                UserRequest {
+                    email: email.clone(),
+                    password: "Pass#1234567890".to_string(),
+                    role: UserOrgRole {
+                        base_role: role.clone(),
+                        custom_role: None,
+                    },
+                    first_name: "Community".to_string(),
+                    last_name: "User".to_string(),
+                    is_external: false,
+                    token: None,
+                },
+                "admin@zo.dev",
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(response.status(), http::StatusCode::OK);
+            assert_eq!(
+                db::user::get(Some("dummy"), &email)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .role,
+                role
+            );
+        }
+    }
+
     #[tokio::test]
     async fn test_user() {
         let _guard = set_up().await;
@@ -2366,6 +2457,127 @@ mod tests {
         assert!(resp.is_ok());
         let response = resp.unwrap();
         assert_eq!(response.status(), 404);
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[tokio::test]
+    async fn editor_cannot_change_another_users_role() {
+        let _guard = set_up().await;
+        let editor = "editor@example.com";
+        let target = "target@example.com";
+        create_member(editor, &[("dummy", UserRole::Editor)]).await;
+        create_member(target, &[("dummy", UserRole::Viewer)]).await;
+
+        let response = update_user(
+            "dummy",
+            target,
+            UserUpdateMode::OtherUpdate,
+            editor,
+            UpdateUser {
+                role: Some(common::meta::user::UserRoleRequest {
+                    role: UserRole::Admin.to_string(),
+                    custom: None,
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.status(), http::StatusCode::FORBIDDEN);
+        assert_eq!(
+            db::user::get(Some("dummy"), target)
+                .await
+                .unwrap()
+                .unwrap()
+                .role,
+            UserRole::Viewer
+        );
+    }
+
+    #[test]
+    fn enterprise_custom_role_request_counts_as_a_role_change() {
+        let request = common::meta::user::UserRoleRequest {
+            role: UserRole::Viewer.to_string(),
+            custom: Some(vec!["org_admin_custom".to_string()]),
+        };
+
+        assert!(role_request_changes(UserRole::Viewer, &request));
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[tokio::test]
+    async fn editor_can_update_details_when_resending_the_unchanged_role() {
+        let _guard = set_up().await;
+        let editor = "editor-echo@example.com";
+        let target = "target-echo@example.com";
+        create_member(editor, &[("dummy", UserRole::Editor)]).await;
+        create_member(target, &[("dummy", UserRole::Viewer)]).await;
+
+        let response = update_user(
+            "dummy",
+            target,
+            UserUpdateMode::OtherUpdate,
+            editor,
+            UpdateUser {
+                first_name: Some("Updated".to_string()),
+                role: Some(common::meta::user::UserRoleRequest {
+                    role: UserRole::Viewer.to_string(),
+                    custom: None,
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.status(), http::StatusCode::OK);
+        let updated = db::user::get(Some("dummy"), target).await.unwrap().unwrap();
+        assert_eq!(updated.first_name, "Updated");
+        assert_eq!(updated.role, UserRole::Viewer);
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[tokio::test]
+    async fn root_self_and_cli_updates_ignore_the_wire_role() {
+        let _guard = set_up().await;
+        let root = "root@zo.dev";
+        ORG_USERS.insert(
+            format!("{DEFAULT_ORG}/{root}"),
+            OrgUserRecord {
+                role: UserRole::Root,
+                token: "root_token".to_string(),
+                rum_token: Some("root_rum_token".to_string()),
+                org_id: DEFAULT_ORG.to_string(),
+                email: root.to_string(),
+                created_at: 0,
+                allow_static_token: true,
+            },
+        );
+
+        for (mode, name) in [
+            (UserUpdateMode::SelfUpdate, "Self Updated"),
+            (UserUpdateMode::CliUpdate, "CLI Updated"),
+        ] {
+            let response = update_user(
+                DEFAULT_ORG,
+                root,
+                mode,
+                root,
+                UpdateUser {
+                    first_name: Some(name.to_string()),
+                    role: Some(common::meta::user::UserRoleRequest {
+                        role: UserRole::Root.to_string(),
+                        custom: None,
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(response.status(), http::StatusCode::OK, "{name}");
+            assert_eq!(ROOT_USER.get("root").unwrap().role, UserRole::Root);
+        }
     }
 
     /// A password change must land the new hash and the columns describing it together: the flag

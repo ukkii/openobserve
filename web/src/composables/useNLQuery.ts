@@ -25,7 +25,6 @@ import { parsePromQlQuery } from "@/utils/query/promQLUtils";
 import { UNAUTHORIZED_MESSAGE_KEY, isAuthError } from "@/utils/authErrors";
 import { aiCreditsNotice } from "@/utils/aiCredits";
 import { accessDeniedMessage, accessReason, viewDenial } from "@/composables/useAccessStore";
-import analytics from "@/services/product_analytics";
 
 /**
  * Composable for Natural Language to SQL Query transformation
@@ -596,8 +595,6 @@ export function useNLQuery(t: TranslateFn) {
                       lastMessageContent = lastMessage.content;
                     }
                   }
-                } else if (data.type === "title") {
-                  // Title event (ignore for now)
                 } else if (data.content) {
                   // Content event (regular text)
                   generatedQuery += data.content;
@@ -628,7 +625,6 @@ export function useNLQuery(t: TranslateFn) {
 
         // If SQL was successfully extracted, return it (this is the primary goal)
         if (extractedSQL) {
-          analytics.track("ai_query_generated");
           return extractedSQL;
         }
 

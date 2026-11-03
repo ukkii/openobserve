@@ -24,7 +24,6 @@ import router from "@/test/unit/helpers/router";
 import usersService from "@/services/users";
 import organizationsService from "@/services/organizations";
 import { getRoles } from "@/services/iam";
-import analytics from "@/services/product_analytics";
 import { queryClient } from "@/composables/query/queryClient";
 import { userKeys } from "@/services/users.querykeys";
 
@@ -57,7 +56,6 @@ vi.mock("@/services/iam", async (importOriginal) => {
   const { automockService } = await import("@/test/unit/helpers/mockService");
   return automockService(await importOriginal());
 });
-vi.mock("@/services/product_analytics");
 
 // Mock aws-exports config
 vi.mock("@/aws-exports", () => ({

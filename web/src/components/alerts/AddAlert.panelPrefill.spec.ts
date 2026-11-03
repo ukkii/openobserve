@@ -106,8 +106,6 @@ vi.mock("@/services/alerts", () => ({
   },
 }));
 vi.mock("@/services/anomaly_detection", () => ({ default: { get: vi.fn() } }));
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-vi.mock("@/services/reodotdev_analytics", () => ({ useReo: () => ({ track: vi.fn() }) }));
 
 // QueryConfig stays real: it is what seeds the SQL and aggregation this spec checks.
 const stubs = {

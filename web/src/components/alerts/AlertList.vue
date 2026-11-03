@@ -40,6 +40,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
              only discoverable once the export dialog is already open. -->
         <!-- Add button — routes to anomaly creation on anomaly tab, alert creation otherwise -->
         <OButton
+          v-if="canMutate"
           data-test="alert-list-add-alert-btn"
           variant="primary"
           size="sm"
@@ -73,6 +74,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         <IacRegistryLinks data-test="alert-list-iac-registries" :compact="isCompactToolbar" />
         <!-- Import button -->
         <OButton
+          v-if="canMutate"
           :class="isCompactToolbar ? 'min-w-0! px-2! py-0!' : ''"
           variant="outline"
           size="sm"
@@ -576,7 +578,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
               </template>
 
               <template #cell-actions="{ row }">
-                <div class="actions-container flex items-center">
+                <div v-if="canMutate" class="actions-container flex items-center">
                   <div
                     data-test="alert-list-loading-alert"
                     v-if="alertStateLoadingMap[row.uuid]"
@@ -844,7 +846,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                   <!-- First run only: the filtered state keeps its single Clear filters action. -->
                   <template v-if="!(filterQuery || searchQuery || stateFilter)" #actions>
                     <OButton
-                      v-if="showAlertLibrary"
+                      v-if="canMutate && showAlertLibrary"
                       variant="primary"
                       size="lg"
                       icon-left="menu-book"
@@ -854,7 +856,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                       {{ t("alerts.alertLibrary") }}
                     </OButton>
                     <OButton
-                      v-if="!showAlertLibrary"
+                      v-if="canMutate && !showAlertLibrary"
                       variant="primary"
                       size="lg"
                       icon-left="add"
@@ -864,6 +866,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                       {{ t("emptyState.noAlerts.action") }}
                     </OButton>
                     <OButton
+                      v-if="canMutate"
                       variant="outline"
                       size="lg"
                       icon-left="upload-file"
@@ -873,7 +876,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                       {{ t("alerts.importAlert") }}
                     </OButton>
                     <OButton
-                      v-if="showAlertLibrary"
+                      v-if="canMutate && showAlertLibrary"
                       variant="outline"
                       size="lg"
                       icon-left="add"
@@ -888,6 +891,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
               <template #selection-actions>
                 <OButton
+                  v-if="canMutate"
                   data-test="alert-list-move-across-folders-btn"
                   variant="outline"
                   size="sm"
@@ -904,6 +908,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                   >{{ t("common.export") }}</OButton
                 >
                 <OButton
+                  v-if="canMutate"
                   data-test="alert-list-pause-alerts-btn"
                   variant="outline"
                   size="sm"
@@ -912,6 +917,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                   >{{ t("alerts.pause") }}</OButton
                 >
                 <OButton
+                  v-if="canMutate"
                   data-test="alert-list-unpause-alerts-btn"
                   variant="outline"
                   size="sm"
@@ -919,7 +925,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                   @click="bulkToggleAlerts('resume')"
                   >{{ t("alerts.resume") }}</OButton
                 >
-                <ODropdown v-if="downtimesEnabled" side="top">
+                <ODropdown v-if="canMutate && downtimesEnabled" side="top">
                   <template #trigger>
                     <OButton
                       variant="outline"
@@ -939,6 +945,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                   />
                 </ODropdown>
                 <OButton
+                  v-if="canMutate"
                   data-test="alert-list-delete-alerts-btn"
                   variant="outline-destructive"
                   size="sm"
@@ -1145,12 +1152,10 @@ import sloService from "@/services/slos";
 import { templatesQuery } from "@/services/alert_templates.queries";
 import OEmptyState from "@/lib/core/EmptyState/OEmptyState.vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
-import analytics from "@/services/product_analytics";
 import config from "@/aws-exports";
 import ImportAlert from "@/components/alerts/ImportAlert.vue";
 import { getImageURL, getUUID, verifyOrganizationStatus } from "@/utils/zincutils";
 import { copyToClipboard } from "@/utils/clipboard";
-import { useReo } from "@/services/reodotdev_analytics";
 import type { Alert } from "@/ts/interfaces/index";
 import type { OnCallTeam } from "@/ts/interfaces/oncall";
 import OIcon from "@/lib/core/Icon/OIcon.vue";
@@ -1206,6 +1211,7 @@ import { useShortcuts } from "@/lib/vue-shortcut-manager";
 import { focusSearchInput, isInputFocused } from "@/utils/keyboardShortcuts";
 import { COL } from "@/lib/core/Table/OTable.types";
 import { useEditorDraftIds } from "@/composables/useEditorDraft";
+import { useBuiltInRole } from "@/composables/useBuiltInRole";
 import { deleteEditorDraftsFor } from "@/utils/drafts/editorDraftStore";
 import EditorDraftDot from "@/components/common/drafts/EditorDraftDot.vue";
 import {
@@ -1265,6 +1271,7 @@ export default defineComponent({
   emits: ["update:changeRecordPerPage", "update:maxRecordToReturn"],
   setup() {
     const store = useStore();
+    const { canMutate } = useBuiltInRole();
     const { t } = useI18nTyped();
     const { lgUp } = useBreakpoint();
 
@@ -1295,7 +1302,6 @@ export default defineComponent({
       }
     }
     const router = useRouter();
-    const { track } = useReo();
     const formData: Ref<Alert | {}> = ref({});
     const toBeClonedAlert: Ref<any> = ref(null);
     // Save waits on this: an alert cloned before it loads is posted without destinations or conditions.
@@ -2739,11 +2745,9 @@ export default defineComponent({
       //made this async because we need to wait for the router to navigate
       //so that we can get the alert_type from the query params
       formData.value = props.row;
-      let action;
       try {
         if (!props.row) {
           isUpdated.value = false;
-          action = "Add Alert";
           await router.push({
             name: "alertList",
             query: {
@@ -2756,7 +2760,6 @@ export default defineComponent({
           });
         } else {
           isUpdated.value = true;
-          action = "Update Alert";
           await router.push({
             name: "alertList",
             query: {
@@ -2770,15 +2773,6 @@ export default defineComponent({
           });
         }
         addAlert();
-        analytics.track("Button Click", {
-          button: action,
-          user_org: store.state.selectedOrganization.identifier,
-          page: "Alerts",
-        });
-        track("Button Click", {
-          button: action,
-          page: "Add Alert",
-        });
       } catch (error) {
         console.error("Navigation failed:", error);
       }
@@ -3215,10 +3209,6 @@ export default defineComponent({
           tab: activeTab.value,
         },
       });
-      track("Button Click", {
-        button: "Hide Form",
-        page: "Add Alert",
-      });
     };
     const alertWriteOrgId = useOrgId();
     const toggleAlertStateWrite = useMutation(() =>
@@ -3353,12 +3343,6 @@ export default defineComponent({
             message: err?.data?.message || t("alerts.messages.deleteAlertFailed"),
           });
         });
-      analytics.track("Button Click", {
-        button: "Delete Alert",
-        user_org: store.state.selectedOrganization.identifier,
-        alert_name: selectedDelete.value.name,
-        page: "Alerts",
-      });
     };
     const showDeleteDialogFn = (props: any) => {
       selectedDelete.value = props.row;
@@ -4180,7 +4164,7 @@ export default defineComponent({
       {
         id: "alertsCreate",
         handler: () => {
-          if (isInputFocused()) return;
+          if (!canMutate.value || isInputFocused()) return;
           // Mirror the Add button so the URL updates (action=add / route push),
           // otherwise "go back"/discard can't return to the list.
           if (!templates.value.length) return;
@@ -4201,7 +4185,7 @@ export default defineComponent({
       {
         id: "alertsImport",
         handler: () => {
-          if (isInputFocused()) return;
+          if (!canMutate.value || isInputFocused()) return;
           importAlert();
         },
       },
@@ -4221,6 +4205,7 @@ export default defineComponent({
     ]);
 
     return {
+      canMutate,
       downtimesEnabled,
       muteDialogOpen,
       muteSelection,

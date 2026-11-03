@@ -13,7 +13,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { effectScope } from "vue";
+import config from "@/aws-exports";
+
+vi.mock("@/aws-exports", () => ({ default: { isEnterprise: "true", isCloud: "false" } }));
+vi.mock("@/services/http", () => ({
+  default: () => ({ post: communityPost, delete: communityDelete }),
+}));
+const { communityPost, communityDelete } = vi.hoisted(() => ({
+  communityPost: vi.fn(),
+  communityDelete: vi.fn(),
+}));
 
 vi.mock("@/services/iam", () => ({
   createRole: vi.fn(),
@@ -76,13 +87,85 @@ const useOrg = (org: string, zoConfig: Record<string, unknown> = {}) => {
 };
 
 describe("useMcpCredential", () => {
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
+    config.isEnterprise = "true";
     vi.clearAllMocks();
     vi.mocked(service_accounts.create).mockResolvedValue(created() as any);
     vi.mocked(createRole).mockResolvedValue({} as any);
     vi.mocked(getResources).mockResolvedValue({ data: RESOURCES } as any);
     vi.mocked(getAllRolePermissions).mockResolvedValue({ data: [] } as any);
     vi.mocked(updateRole).mockResolvedValue({} as any);
+  });
+
+  it("issues and revokes a community bearer credential without creating service accounts or roles", async () => {
+    config.isEnterprise = "false";
+    communityPost.mockResolvedValue({
+      data: {
+        email: "viewer@example.com",
+        token: "o2mcp.token",
+        expires_at: Date.now() * 1000 + 86_400_000_000,
+      },
+    });
+    communityDelete.mockResolvedValue({});
+    const state = useOrg("community-mcp-org");
+    const value = await state.generate();
+    expect(value?.scheme).toBe("Bearer");
+    expect(value?.scope).toBe("readonly");
+    expect(communityPost).toHaveBeenCalledWith("/api/community-mcp-org/mcp/credentials", {});
+    expect(service_accounts.create).not.toHaveBeenCalled();
+    expect(createRole).not.toHaveBeenCalled();
+    await state.revoke();
+    expect(communityDelete).toHaveBeenCalledWith("/api/community-mcp-org/mcp/credentials");
+    expect(state.credential.value).toBeNull();
+  });
+
+  it("discards an expired cached credential on remount and permits generation again", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-03T00:00:00Z"));
+    config.isEnterprise = "false";
+    communityPost.mockResolvedValueOnce({
+      data: { email: "viewer@example.com", token: "old", expires_at: Date.now() * 1000 + 1000000 },
+    });
+    const firstScope = effectScope();
+    const initial = firstScope.run(() => useOrg("community-expired-remount"))!;
+    await initial.generate();
+    firstScope.stop();
+    vi.setSystemTime(new Date("2026-11-03T00:00:02Z"));
+    const nextScope = effectScope();
+    try {
+      const remounted = nextScope.run(() => useOrg("community-expired-remount"))!;
+      expect(remounted.credential.value).toBeNull();
+      communityPost.mockRejectedValueOnce(new Error("issuance refused"));
+      expect(await remounted.generate()).toBeNull();
+      expect(remounted.credential.value).toBeNull();
+      expect(communityPost).toHaveBeenCalledTimes(2);
+    } finally {
+      nextScope.stop();
+    }
+  });
+
+  it("clears a mounted credential when its lifetime ends", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-03T00:00:00Z"));
+    config.isEnterprise = "false";
+    communityPost.mockResolvedValueOnce({
+      data: {
+        email: "viewer@example.com",
+        token: "expiring",
+        expires_at: Date.now() * 1000 + 1000000,
+      },
+    });
+    const scope = effectScope();
+    try {
+      const state = scope.run(() => useOrg("community-expired-mounted"))!;
+      await state.generate();
+      expect(state.credential.value?.token).toBe("expiring");
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(state.credential.value).toBeNull();
+    } finally {
+      scope.stop();
+    }
   });
 
   describe("without rbac", () => {

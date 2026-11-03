@@ -669,8 +669,6 @@ import {
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import { raw, useI18nTyped } from "@/types/i18n";
-
-import analytics from "@/services/product_analytics";
 import config from "@/aws-exports";
 import { verifyOrganizationStatus, deepCopy, addSpacesToOperators } from "@/utils/zincutils";
 import MainLayoutCloudMixin from "@/enterprise/mixins/mainLayout.mixin";
@@ -838,14 +836,6 @@ export default defineComponent({
     },
     searchData() {
       this.autoRun.engine.requestRun("run");
-
-      analytics.track("logs_search_run", {
-        stream_name: this.searchObj.data.stream.selectedStream.join(","),
-        show_query: this.searchObj.meta.showQuery,
-        show_histogram: this.searchObj.meta.showHistogram,
-        sql_mode: this.searchObj.meta.sqlMode,
-        show_fields: this.searchObj.meta.showFields,
-      });
     },
     async getMoreDataRecordsPerPage() {
       if (this.searchObj.meta.refreshInterval == 0) {
@@ -889,10 +879,6 @@ export default defineComponent({
             notePageLoad(this.searchObj, requestId, "error");
           }
         }
-
-        analytics.track("logs_more_rows_loaded", {
-          stream_name: this.searchObj.data.stream.selectedStream.join(","),
-        });
       }
     },
     async getLessData() {
@@ -912,13 +898,6 @@ export default defineComponent({
         this.searchObj.data.resultGrid.currentPage = this.searchObj.data.resultGrid.currentPage - 1;
 
         this.autoRun.engine.requestRun("pagination");
-
-        analytics.track("Button Click", {
-          button: "Get Less Data",
-          user_org: this.store.state.selectedOrganization.identifier,
-          stream_name: this.searchObj.data.stream.selectedStream.join(","),
-          page: "Search Logs",
-        });
       }
     },
   },

@@ -32,7 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         <img
           class="h-10 max-h-10 w-auto max-w-50 cursor-pointer"
           loading="lazy"
-          :alt="t('login.openObserveLogoAlt')"
+          :alt="raw('HT')"
           :src="
             isDark
               ? getImageURL('images/common/openobserve_latest_dark_2.svg')
@@ -71,9 +71,8 @@ import {
 } from "@/utils/zincutils";
 import usersService from "@/services/users";
 import organizationsService from "@/services/organizations";
-import { useReo } from "@/services/reodotdev_analytics";
 import { toast } from "@/lib/feedback/Toast/useToast";
-import { useI18nTyped } from "@/types/i18n";
+import { raw, useI18nTyped } from "@/types/i18n";
 import { expireSession } from "@/utils/sessionServices";
 import { isSameOriginRedirect } from "@/utils/safeUrl";
 import { withDisambiguatedOrgLabels } from "@/utils/organizationLabel";
@@ -94,7 +93,6 @@ export default defineComponent({
     const selectedOrg = ref({});
     const router: any = useRouter();
     const showInvitations = ref(false);
-    const { identify } = useReo();
     const invitedOrg = ref<{ identifier: string; name: string }>({
       identifier: "",
       name: "",
@@ -211,11 +209,6 @@ export default defineComponent({
           ) {
             localStorage.setItem("isFirstTimeLogin", "true");
           }
-          //this will identify the user for reo.dev
-          identify({
-            username: store.state.userInfo.email,
-            type: "email",
-          });
           // Show pending invitations screen if user has no orgs and has pending invites
           if (config.isCloud == "true" && !res.data.data?.length) {
             try {
@@ -306,6 +299,7 @@ export default defineComponent({
     return {
       store,
       t,
+      raw,
       isDark,
       config,
       router,

@@ -52,7 +52,6 @@ vi.mock("@/services/jstransform", async (importOriginal) => {
     },
   });
 });
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
 
 import MainLayout from "./MainLayout.vue";
 

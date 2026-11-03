@@ -131,6 +131,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
             </OToggleGroupItem>
 
             <OToggleGroupItem
+              v-if="patternsAccess.allowed"
               data-test="logs-patterns-toggle"
               value="patterns"
               size="sm"
@@ -717,7 +718,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
           <ODropdownSeparator />
 
-          <ODropdownGroup :label="t('search.menuGroupSchedule')">
+          <ODropdownGroup
+            v-if="scheduledSearchAccess.allowed"
+            :label="t('search.menuGroupSchedule')"
+          >
             <template v-if="!scheduledSearchAccess.allowed" #label-action>
               <OIcon
                 name="lock"
@@ -1731,8 +1735,6 @@ import { useToolbarPins } from "@/composables/useToolbarPins";
 import useStreams from "@/composables/useStreams";
 import SyntaxGuide from "./SyntaxGuide.vue";
 import searchService from "@/services/search";
-
-import analytics from "@/services/product_analytics";
 import config from "@/aws-exports";
 import { useEnterpriseUpgradeDialog } from "@/composables/useEnterpriseUpgradeDialog";
 import { checkFeatureAccess, buildFeatureGateContext } from "@/utils/enterpriseFeatures";
@@ -3102,14 +3104,6 @@ export default defineComponent({
         searchObj.runQuery = true;
       }
 
-      if (value.userChangedValue) {
-        analytics.track("logs_time_range_changed", {
-          stream_name: searchObj.data.stream.selectedStream.join(","),
-          value_type: value.valueType,
-          relative_period: value.relativeTimePeriod,
-        });
-      }
-
       if (
         value.valueType === "relative" &&
         store.state.zoConfig.query_on_stream_selection == false &&
@@ -3190,7 +3184,6 @@ export default defineComponent({
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         showDownloadMenu.value = false;
-        analytics.track("logs_downloaded", { format });
       } catch (error) {
         showDownloadMenu.value = false;
         toast({

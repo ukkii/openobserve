@@ -43,10 +43,6 @@ vi.mock("@/services/users", async (importOriginal) => {
   });
 });
 
-vi.mock("@/services/product_analytics", () => ({
-  default: { track: vi.fn() },
-}));
-
 const { mockToast } = vi.hoisted(() => ({
   mockToast: vi.fn(),
 }));
@@ -57,7 +53,6 @@ vi.mock("@/lib/feedback/Toast/useToast", () => ({
 
 import organizationsService from "@/services/organizations";
 import usersService from "@/services/users";
-import analytics from "@/services/product_analytics";
 
 const ROLES = [
   { label: "Admin", value: "admin" },
@@ -295,12 +290,6 @@ describe("InviteMembersDialog", () => {
       wrapper = await mountDialog();
       setEmail(wrapper, "new@example.com");
       await submitForm(wrapper);
-
-      expect(analytics.track).toHaveBeenCalledWith("Button Click", {
-        button: "Invite User",
-        user_org: ORG,
-        page: "Users",
-      });
     });
 
     it("shows an error toast and stays open when invalid_members are returned", async () => {
@@ -333,7 +322,6 @@ describe("InviteMembersDialog", () => {
         expect.objectContaining({ variant: "error", message: "Server error" }),
       );
       expect(wrapper.emitted("inviteSent")).toBeFalsy();
-      expect(analytics.track).toHaveBeenCalled();
     });
 
     it("closes from the cancel button", async () => {

@@ -81,19 +81,19 @@ const enterpriseResolverPlugin = {
   },
 };
 
-// The Geist fonts are vendored and get compiled into the OpenObserve binary
-// with the rest of dist/, and the OFL requires its text to travel with them.
-// Vite only emits assets that are imported, so the license is copied explicitly.
+// The OFL requires its text to ship with the compiled Geist Mono font.
 const fontLicensePlugin = {
   name: "font-license",
   apply: "build" as const,
   generateBundle() {
-    const src = path.resolve(__dirname, "src/styles/fonts/OFL.txt");
-    (this as any).emitFile({
-      type: "asset",
-      fileName: "fonts/OFL.txt",
-      source: fs.readFileSync(src, "utf8"),
-    });
+    for (const fileName of ["OFL.txt", "NotoSans-OFL.txt"]) {
+      const src = path.resolve(__dirname, `src/styles/fonts/${fileName}`);
+      (this as any).emitFile({
+        type: "asset",
+        fileName: `fonts/${fileName}`,
+        source: fs.readFileSync(src, "utf8"),
+      });
+    }
   },
 };
 

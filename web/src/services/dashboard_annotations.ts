@@ -1,5 +1,4 @@
 import http from "./http";
-import analytics from "./product_analytics";
 
 export const annotationService = {
   create_timed_annotations: (
@@ -23,7 +22,6 @@ export const annotationService = {
         },
       })
       .then((res) => {
-        analytics.track("dashboard_annotation_created");
         return res;
       });
   },

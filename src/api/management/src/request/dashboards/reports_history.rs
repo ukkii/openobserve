@@ -17,7 +17,6 @@ use axum::{extract::Path, response::Response};
 use axum_extra::extract::Query as ExtraQuery;
 use chrono::{Duration, Utc};
 use config::{
-    get_config,
     meta::{
         search::{Query as SearchQuery, Request as SearchRequest},
         self_reporting::usage::{TRIGGERS_STREAM, TriggerData, TriggerDataType, normalize_outcome},
@@ -45,7 +44,6 @@ use crate::common::{
     meta::http::HttpResponse as MetaHttpResponse, utils::http::get_or_create_trace_id,
 };
 
-pub const DISABLED_REMOTE: &str = "usage_reporting_remote";
 pub const DISABLED_TRIAL_EXPIRED: &str = "trial_expired";
 const MODULE_REPORT: &str = "report";
 const MODULE_CACHED_REPORT: &str = "cached_report";
@@ -710,29 +708,17 @@ async fn permitted_report_ids(
 }
 
 async fn disabled_reason(_org_id: &str) -> Option<&'static str> {
-    let cfg = get_config();
     #[cfg(feature = "cloud")]
     let trial_over = !openobserve_core::organization::is_org_in_free_trial_period(_org_id)
         .await
         .unwrap_or(true);
     #[cfg(not(feature = "cloud"))]
     let trial_over = false;
-    disabled_reason_for(
-        &cfg.common.usage_reporting_mode,
-        cfg!(feature = "enterprise"),
-        trial_over,
-    )
+    disabled_reason_for(trial_over)
 }
 
-/// Mirrors the own-org write rules in self_reporting::persistence.
-fn disabled_reason_for(
-    usage_reporting_mode: &str,
-    enterprise: bool,
-    trial_over: bool,
-) -> Option<&'static str> {
-    if !enterprise && usage_reporting_mode == "remote" {
-        Some(DISABLED_REMOTE)
-    } else if trial_over {
+fn disabled_reason_for(trial_over: bool) -> Option<&'static str> {
+    if trial_over {
         Some(DISABLED_TRIAL_EXPIRED)
     } else {
         None
@@ -1045,18 +1031,9 @@ mod tests {
     }
 
     #[test]
-    fn disabled_reason_names_each_cause() {
-        assert_eq!(
-            disabled_reason_for("remote", false, false),
-            Some(DISABLED_REMOTE)
-        );
-        assert_eq!(disabled_reason_for("remote", true, false), None);
-        assert_eq!(
-            disabled_reason_for("local", false, true),
-            Some(DISABLED_TRIAL_EXPIRED)
-        );
-        assert_eq!(disabled_reason_for("local", false, false), None);
-        assert_eq!(disabled_reason_for("both", false, false), None);
+    fn disabled_reason_names_trial_expiry() {
+        assert_eq!(disabled_reason_for(true), Some(DISABLED_TRIAL_EXPIRED));
+        assert_eq!(disabled_reason_for(false), None);
     }
     #[test]
     fn delivery_attempted_preserves_true_false_and_legacy_unknown() {

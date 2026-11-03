@@ -16,7 +16,6 @@
 import { gt } from "@/types/i18n";
 
 import http from "./http";
-import analytics from "./product_analytics";
 
 /**
  * Reject when the body carries an error code, even on HTTP 200.
@@ -61,7 +60,6 @@ const slos = {
       .post(`/api/${org_identifier}/slos`, data)
       .then(rejectBodyErrors)
       .then((res) => {
-        analytics.track("slo_created", { sli_type: (data as { sli_type?: string }).sli_type });
         return res;
       });
   },
@@ -71,7 +69,6 @@ const slos = {
       .put(`/api/${org_identifier}/slos/${slo_id}`, data)
       .then(rejectBodyErrors)
       .then((res) => {
-        analytics.track("slo_updated", { sli_type: (data as { sli_type?: string }).sli_type });
         return res;
       });
   },
@@ -81,7 +78,6 @@ const slos = {
       .delete(`/api/${org_identifier}/slos/${slo_id}`)
       .then(rejectBodyErrors)
       .then((res) => {
-        analytics.track("slo_deleted", { count: 1 });
         return res;
       });
   },
@@ -104,7 +100,6 @@ const slos = {
       .put(`/api/${org_identifier}/slos/${slo_id}/enable?value=${value}`)
       .then(rejectBodyErrors)
       .then((res) => {
-        analytics.track(value ? "slo_enabled" : "slo_disabled", { count: 1 });
         return res;
       });
   },

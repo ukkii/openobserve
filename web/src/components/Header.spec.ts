@@ -495,7 +495,7 @@ describe("Header Component", () => {
       aiWrapper.unmount();
     });
 
-    it("should show the AI button locked (not hidden) if not enterprise", async () => {
+    it("should hide the AI button if not enterprise", async () => {
       const aiWrapper = createWrapper({
         mountType: "mount",
         storeOverrides: {
@@ -513,10 +513,8 @@ describe("Header Component", () => {
 
       await aiWrapper.vm.$nextTick();
 
-      // Visible and clickable — upsell, not a hidden or disabled feature.
       const aiButton = aiWrapper.find('[data-test="menu-link-ai-item"]');
-      expect(aiButton.exists()).toBe(true);
-      expect(aiButton.attributes("disabled")).toBeUndefined();
+      expect(aiButton.exists()).toBe(false);
 
       aiWrapper.unmount();
     });

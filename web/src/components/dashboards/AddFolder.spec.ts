@@ -60,16 +60,6 @@ vi.mock("@/composables/useNotifications", () => ({
   }),
 }));
 
-vi.mock("@/services/product_analytics", () => ({ default: { track: vi.fn() } }));
-import analytics from "@/services/product_analytics";
-
-// Mock analytics
-vi.mock("@/services/reodotdev_analytics", () => ({
-  useReo: () => ({
-    track: vi.fn(),
-  }),
-}));
-
 describe("AddFolder", () => {
   let store: any;
 
@@ -253,8 +243,6 @@ describe("AddFolder", () => {
 
     await wrapper.vm.onSubmit({ name: "Valid Folder", description: "" });
     await flushPromises();
-
-    expect(analytics.track).toHaveBeenCalledWith("dashboard_folder_created");
   });
 
   it("does not track dashboard_folder_created when creation fails or a folder is edited", async () => {
@@ -267,7 +255,5 @@ describe("AddFolder", () => {
       description: "",
     });
     await flushPromises();
-
-    expect(analytics.track).not.toHaveBeenCalled();
   });
 });
